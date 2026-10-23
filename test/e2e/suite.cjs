@@ -14,7 +14,7 @@ exports.run = async function run() {
 
   const step = (m) => console.log("e2e step: " + m);
   step("start");
-  const ext = vscode.extensions.getExtension("brandon2255p.visual-jujutsu");
+  const ext = vscode.extensions.getExtension("OpenProcess.visual-jujutsu");
   assert.ok(ext, "extension is installed");
   await ext.activate();
   step("activated");
