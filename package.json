@@ -1,0 +1,220 @@
+{
+  "name": "visual-jujutsu",
+  "displayName": "Visual Jujutsu",
+  "description": "See and edit your Jujutsu (jj) revision graph: describe, rebase, move files and bookmarks, push and open pull requests.",
+  "version": "0.1.0",
+  "publisher": "brandon2255p",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Brandon2255p/visual-jujutsu.git"
+  },
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Visualization"
+  ],
+  "keywords": [
+    "jj",
+    "jujutsu",
+    "git",
+    "graph",
+    "rebase"
+  ],
+  "activationEvents": [
+    "workspaceContains:.jj"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "visualJujutsu",
+          "title": "Visual Jujutsu",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "visualJujutsu": [
+        {
+          "id": "visualJujutsu.graph",
+          "name": "Visual Jujutsu",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "visualJujutsu.refresh",
+        "title": "Refresh",
+        "category": "Visual Jujutsu",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "visualJujutsu.fetch",
+        "title": "Fetch",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.push",
+        "title": "Push…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.undo",
+        "title": "Undo Last Operation",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.redo",
+        "title": "Redo Operation",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.showCommandLog",
+        "title": "Show Command Log",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.describe",
+        "title": "Describe Revision…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.newRevision",
+        "title": "New Revision…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.edit",
+        "title": "Edit (Check Out) Revision…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.abandon",
+        "title": "Abandon Revision…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.squashIntoParent",
+        "title": "Squash Revision into Parent…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.rebase",
+        "title": "Rebase…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.rebaseOnTrunk",
+        "title": "Rebase on Main",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.createBookmark",
+        "title": "Create Bookmark…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.moveBookmark",
+        "title": "Move Bookmark…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.createPullRequest",
+        "title": "Create Pull Request…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.movePullRequest",
+        "title": "Move Pull Request to Revision…",
+        "category": "Visual Jujutsu"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "visualJujutsu.refresh",
+          "when": "view == visualJujutsu.graph",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Visual Jujutsu",
+      "properties": {
+        "visualJujutsu.jjPath": {
+          "type": "string",
+          "default": "jj",
+          "description": "Path to the jj executable."
+        },
+        "visualJujutsu.ghPath": {
+          "type": "string",
+          "default": "gh",
+          "description": "Path to the GitHub CLI, used for pull requests."
+        },
+        "visualJujutsu.defaultRevset": {
+          "type": "string",
+          "default": "",
+          "description": "Revset shown when the graph opens. Empty uses jj's own default (revsets.log)."
+        },
+        "visualJujutsu.savedRevsets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "revset": {
+                "type": "string"
+              }
+            }
+          },
+          "default": [],
+          "description": "Extra revset presets shown in the graph's preset list."
+        },
+        "visualJujutsu.logLimit": {
+          "type": "number",
+          "default": 200,
+          "description": "Maximum number of revisions to load."
+        },
+        "visualJujutsu.fetchBeforeRebaseOnTrunk": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run jj git fetch before \"Rebase on main\"."
+        },
+        "visualJujutsu.pullRequestBookmarkPrefix": {
+          "type": "string",
+          "default": "push-",
+          "description": "Prefix for bookmarks created when you open a pull request from a revision without one."
+        },
+        "visualJujutsu.confirmDestructiveActions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask before abandoning revisions or moving bookmarks backwards."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview",
+    "test": "vitest run",
+    "package": "npx @vscode/vsce package --no-dependencies",
+    "test:e2e": "npm run build && node test/e2e/run.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "1.95.0",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
+    "preact": "^11.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
