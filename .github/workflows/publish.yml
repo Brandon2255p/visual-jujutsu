@@ -2,27 +2,58 @@
 # version tag is pushed, e.g. `jj tag set v0.1.0 -r main && jj git push --tag v0.1.0`
 # (or `git tag v0.1.0 && git push origin v0.1.0`).
 #
-# Repo secrets:
-#   VSCE_PAT  Azure DevOps token with Marketplace > Manage scope (required)
-#   OVSX_PAT  Open VSX token (optional; skipped when unset)
-# Repo variables:
-#   PRE_RELEASE  set to "false" to publish as a regular release (default: pre-release)
+# Marketplace authentication, in order of preference:
+#   1. Microsoft Entra ID (no stored secret). Repo variables:
+#        AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+#      for a user-assigned managed identity with a federated credential for
+#      subject `repo:Brandon2255p/visual-jujutsu:environment:marketplace`, added
+#      as a Contributor on the Marketplace publisher. Run this workflow manually
+#      with "show_identity" checked to print the ID to add to the publisher.
+#   2. Personal Access Token: repo secret VSCE_PAT (global PATs are retired by
+#      Azure DevOps on 2026-12-01).
+# Optional: OVSX_PAT secret for Open VSX; PRE_RELEASE variable set to "false"
+# for a regular release (default is pre-release).
 name: Publish
 
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      show_identity:
+        description: "Only print the managed identity's Marketplace ID (one-time setup)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+  id-token: write # for Entra ID (OIDC) login
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment: marketplace
+    env:
+      USE_ENTRA: ${{ vars.AZURE_CLIENT_ID != '' }}
     steps:
+      - name: Azure login (Entra ID)
+        if: env.USE_ENTRA == 'true'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Print managed identity ID for the Marketplace publisher
+        if: inputs.show_identity
+        run: |
+          az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me \
+            --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id -o tsv
+
       - uses: actions/checkout@v4
+        if: ${{ !inputs.show_identity }}
       - uses: ./.github/actions/setup
+        if: ${{ !inputs.show_identity }}
 
       - name: Check tag matches package.json version
         if: startsWith(github.ref, 'refs/tags/')
@@ -33,29 +64,37 @@ jobs:
             exit 1
           fi
 
-      - run: npm run typecheck
-      - run: npm test
+      - name: Test
+        if: ${{ !inputs.show_identity }}
+        run: npm run typecheck && npm test
 
       - name: Package
+        if: ${{ !inputs.show_identity }}
         run: |
           flags="--no-dependencies"
           if [ "${{ vars.PRE_RELEASE }}" != "false" ]; then flags="$flags --pre-release"; fi
-          echo "VSCE_FLAGS=$flags" >> "$GITHUB_ENV"
           npx @vscode/vsce package $flags -o visual-jujutsu.vsix
 
+      # The pre-release flag is recorded in the .vsix, so publishing it needs no flags.
       - name: Publish to VS Code Marketplace
+        if: ${{ !inputs.show_identity }}
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx @vscode/vsce publish $VSCE_FLAGS --packagePath visual-jujutsu.vsix
+        run: |
+          if [ "$USE_ENTRA" = "true" ]; then
+            npx @vscode/vsce publish --azure-credential --packagePath visual-jujutsu.vsix
+          elif [ -n "$VSCE_PAT" ]; then
+            npx @vscode/vsce publish --packagePath visual-jujutsu.vsix
+          else
+            echo "No Marketplace credentials: set the AZURE_* variables or the VSCE_PAT secret." >&2
+            exit 1
+          fi
 
       - name: Publish to Open VSX
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        if: env.OVSX_PAT != ''
-        run: |
-          flags=""
-          if [ "${{ vars.PRE_RELEASE }}" != "false" ]; then flags="--pre-release"; fi
-          npx ovsx publish visual-jujutsu.vsix $flags
+        if: ${{ !inputs.show_identity && env.OVSX_PAT != '' }}
+        run: npx ovsx publish visual-jujutsu.vsix
 
       - name: Attach .vsix to a GitHub release
         if: startsWith(github.ref, 'refs/tags/')
