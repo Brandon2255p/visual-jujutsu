@@ -3,7 +3,7 @@
 A VS Code extension that shows the `jj` revision graph and lets you change it directly, without remembering revsets or flags.
 Every action maps to a real `jj` / `gh` command. The extension never edits `.jj` state itself, so `jj undo` always works.
 
-Target: jj ≥ 0.46, colocated git repos, GitHub via the `gh` CLI.
+Target: jj ≥ 0.27 (tested on 0.27–0.46), colocated git repos, GitHub via the `gh` CLI.
 
 Priority key: **P0** = MVP, **P1** = first release after MVP, **P2** = later.
 

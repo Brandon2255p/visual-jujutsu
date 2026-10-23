@@ -73,7 +73,7 @@ Features that are planned but not built yet already appear in the UI and say “
 
 ## Requirements
 
-- `jj` 0.46 or later on your PATH (or set `visualJujutsu.jjPath`).
+- `jj` 0.27 or later on your PATH (or set `visualJujutsu.jjPath`). Redo needs 0.33 or later.
 - For pull requests: the [GitHub CLI](https://cli.github.com) `gh`, logged in, and a GitHub remote.
 
 ## Settings

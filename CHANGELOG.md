@@ -1,8 +1,17 @@
 # Changelog
 
+## 0.1.1 (pre-release)
+
+### Fixed
+- The graph failed to load on jj older than 0.46 ("Failed to parse template: Syntax error"). Visual Jujutsu now works with jj 0.27 and later.
+- Rebase uses `-d` instead of `-o` on jj before 0.36.
+- Pushing a new bookmark works on jj before 0.42 (passes `--allow-new`).
+- Changed-file line counts work on jj before 0.36.
+- A clear message when jj is older than 0.27, and when Redo is used on jj before 0.33.
+
 ## 0.1.0 (pre-release)
 
-First release. Needs jj 0.46 or later.
+First release.
 
 ### Added
 - Revision graph in the sidebar: lanes, working copy, immutable/conflicted/empty revisions, bookmarks (local, remote, conflicted), tags, PR and CI badges.

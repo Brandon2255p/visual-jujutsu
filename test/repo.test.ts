@@ -71,6 +71,20 @@ describe("JjRepo", () => {
     expect(files.every((f) => f.status === "added" && f.added === 1 && f.removed === 0)).toBe(true);
   });
 
+  it("pushes a new bookmark and shows the remote bookmark", async () => {
+    const remote = mkdtempSync(join(tmpdir(), "vj-remote-"));
+    try {
+      execFileSync("git", ["init", "--bare", "-q", remote]);
+      jj("git", "remote", "add", "origin", remote);
+      await repo.push({ bookmarks: ["main"] });
+      const base = (await repo.log("all()", 100)).find((r) => r.description.trim() === "base")!;
+      expect(base.remoteBookmarks).toContainEqual({ name: "main", remote: "origin", targets: [base.commitId] });
+      expect(base.localBookmarks[0].targets).toEqual([base.commitId]);
+    } finally {
+      rmSync(remote, { recursive: true, force: true });
+    }
+  });
+
   it("reads the last operation", async () => {
     const op = await repo.lastOperation();
     expect(op?.id).toBeTruthy();

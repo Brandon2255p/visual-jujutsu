@@ -306,8 +306,8 @@ export class JjRepo {
     const a = ["git", "push"];
     for (const b of args.bookmarks ?? []) a.push("-b", b);
     for (const c of args.changes ?? []) a.push("-c", c);
-    // Before jj 0.36, pushing a bookmark the remote doesn't have yet needed --allow-new.
-    if (args.bookmarks?.length && !this.atLeast("0.36.0")) a.push("--allow-new");
+    // Before jj 0.42, pushing a bookmark the remote doesn't have yet needs --allow-new (deprecated in 0.36, removed in 0.42).
+    if (args.bookmarks?.length && !this.atLeast("0.42.0")) a.push("--allow-new");
     if (args.dryRun) a.push("--dry-run");
     return this.run(a);
   }
