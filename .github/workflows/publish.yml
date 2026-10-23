@@ -81,7 +81,11 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          if [ "$USE_ENTRA" = "true" ]; then
+          id=$(node -p "const p=require('./package.json'); p.publisher + '.' + p.name")
+          version=$(node -p "require('./package.json').version")
+          if npx @vscode/vsce show "$id" --json 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.exit(JSON.parse(s).versions.some(v=>v.version===process.argv[1])?0:1))" "$version"; then
+            echo "$id $version is already on the Marketplace; skipping."
+          elif [ "$USE_ENTRA" = "true" ]; then
             npx @vscode/vsce publish --azure-credential --packagePath visual-jujutsu.vsix
           elif [ -n "$VSCE_PAT" ]; then
             npx @vscode/vsce publish --packagePath visual-jujutsu.vsix
