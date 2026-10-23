@@ -1,8 +1,11 @@
+# Ship only what the extension needs; everything else is excluded.
 **
-!dist/**
-!media/**
+!dist/extension.js
+!dist/webview.js
+!media/icon.png
+!media/icon.svg
 !package.json
 !README.md
+!CHANGELOG.md
 !LICENSE
 !FEATURES.md
-dist/**/*.map

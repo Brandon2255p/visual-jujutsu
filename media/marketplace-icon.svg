@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Source for media/icon.png (Marketplace icon). Render: rsvg-convert -w 256 -h 256 media/marketplace-icon.svg -o media/icon.png -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#26292f"/>
+      <stop offset="1" stop-color="#15171a"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="52" fill="url(#bg)"/>
+  <g fill="none" stroke="#7d8590" stroke-width="10" stroke-linecap="round">
+    <path d="M92 64 V192"/>
+    <path d="M172 104 C172 150 92 140 92 192"/>
+  </g>
+  <circle cx="92" cy="64" r="22" fill="#3794ff"/>
+  <circle cx="172" cy="104" r="17" fill="#26292f" stroke="#c586c0" stroke-width="10"/>
+  <circle cx="92" cy="128" r="17" fill="#22252a" stroke="#c586c0" stroke-width="10"/>
+  <path d="M92 168 L116 192 L92 216 L68 192 Z" fill="#3fb950"/>
+</svg>

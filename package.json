@@ -4,7 +4,19 @@
   "description": "See and edit your Jujutsu (jj) revision graph: describe, rebase, move files and bookmarks, push and open pull requests.",
   "version": "0.1.0",
   "publisher": "brandon2255p",
+  "author": "Brandon",
   "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1b1d21",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Brandon2255p/visual-jujutsu#readme",
+  "bugs": {
+    "url": "https://github.com/Brandon2255p/visual-jujutsu/issues"
+  },
+  "qna": "https://github.com/Brandon2255p/visual-jujutsu/discussions",
+  "pricing": "Free",
   "repository": {
     "type": "git",
     "url": "https://github.com/Brandon2255p/visual-jujutsu.git"
@@ -21,7 +33,10 @@
     "jujutsu",
     "git",
     "graph",
-    "rebase"
+    "rebase",
+    "version control",
+    "pull request",
+    "stacked diffs"
   ],
   "activationEvents": [
     "workspaceContains:.jj"
@@ -206,13 +221,16 @@
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p webview",
     "test": "vitest run",
     "package": "npx @vscode/vsce package --no-dependencies",
-    "test:e2e": "npm run build && node test/e2e/run.mjs"
+    "test:e2e": "npm run build && node test/e2e/run.mjs",
+    "vscode:prepublish": "npm run build",
+    "screenshots": "npm run build && node scripts/screenshots.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/vscode": "1.95.0",
     "@vscode/test-electron": "^3.1.0",
     "esbuild": "^0.28.2",
+    "playwright": "^1.64.1",
     "preact": "^11.0.1",
     "typescript": "^5.9.3",
     "vitest": "^5.0.5"

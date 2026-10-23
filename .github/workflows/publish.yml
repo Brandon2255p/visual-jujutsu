@@ -1,0 +1,67 @@
+# Publishes to the VS Code Marketplace (and Open VSX if configured) when a
+# version tag is pushed, e.g. `jj tag set v0.1.0 -r main && jj git push --tag v0.1.0`
+# (or `git tag v0.1.0 && git push origin v0.1.0`).
+#
+# Repo secrets:
+#   VSCE_PAT  Azure DevOps token with Marketplace > Manage scope (required)
+#   OVSX_PAT  Open VSX token (optional; skipped when unset)
+# Repo variables:
+#   PRE_RELEASE  set to "false" to publish as a regular release (default: pre-release)
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+
+      - name: Check tag matches package.json version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $version" >&2
+            exit 1
+          fi
+
+      - run: npm run typecheck
+      - run: npm test
+
+      - name: Package
+        run: |
+          flags="--no-dependencies"
+          if [ "${{ vars.PRE_RELEASE }}" != "false" ]; then flags="$flags --pre-release"; fi
+          echo "VSCE_FLAGS=$flags" >> "$GITHUB_ENV"
+          npx @vscode/vsce package $flags -o visual-jujutsu.vsix
+
+      - name: Publish to VS Code Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx @vscode/vsce publish $VSCE_FLAGS --packagePath visual-jujutsu.vsix
+
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        if: env.OVSX_PAT != ''
+        run: |
+          flags=""
+          if [ "${{ vars.PRE_RELEASE }}" != "false" ]; then flags="--pre-release"; fi
+          npx ovsx publish visual-jujutsu.vsix $flags
+
+      - name: Attach .vsix to a GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=""
+          if [ "${{ vars.PRE_RELEASE }}" != "false" ]; then prerelease="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" visual-jujutsu.vsix --title "$GITHUB_REF_NAME" --notes-file CHANGELOG.md $prerelease

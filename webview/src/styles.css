@@ -156,12 +156,12 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .gutter { position: absolute; left: 0; top: 0; height: 100%; pointer-events: none; overflow: visible; }
 .gutter line, .gutter path { stroke: var(--vj-edge); stroke-width: 1.5; fill: none; }
 .gutter .dashed { stroke-dasharray: 3 3; }
-.node-wc { fill: var(--vj-wc); }
-.node-mutable { fill: var(--vj-bg); stroke: var(--vj-mutable); stroke-width: 2; }
-.node-immutable { fill: var(--vj-immutable); }
-.node-conflict { fill: var(--vj-conflict); }
-.node-conflict-x { stroke: var(--vj-on-accent); stroke-width: 1.6; stroke-linecap: round; }
-.node-empty { fill: var(--vj-bg); stroke: var(--vj-fg-2); stroke-width: 1.5; stroke-dasharray: 2 2; }
+:is(.gutter, .mini-node) .node-wc { fill: var(--vj-wc); }
+:is(.gutter, .mini-node) .node-mutable { fill: var(--vj-bg); stroke: var(--vj-mutable); stroke-width: 2; }
+:is(.gutter, .mini-node) .node-immutable { fill: var(--vj-immutable); }
+:is(.gutter, .mini-node) .node-conflict { fill: var(--vj-conflict); }
+:is(.gutter, .mini-node) .node-conflict-x { stroke: var(--vj-on-accent); stroke-width: 1.6; stroke-linecap: round; }
+:is(.gutter, .mini-node) .node-empty { fill: var(--vj-bg); stroke: var(--vj-fg-2); stroke-width: 1.5; stroke-dasharray: 2 2; }
 
 .row {
   display: flex; align-items: center; height: var(--vj-row); padding-right: 8px; gap: 6px; cursor: default;
@@ -243,7 +243,7 @@ textarea {
   border: 1px solid var(--vj-focus); display: flex; flex-direction: column; gap: 4px;
 }
 .drop-hint .title { font-weight: 600; }
-.drop-hint .cmd { font-family: var(--vj-mono); font-size: 12px; color: var(--vj-fg-2); word-break: break-all; }
+.drop-hint .cmd { font-family: var(--vj-mono); font-size: 12px; color: var(--vj-fg-2); overflow-wrap: anywhere; }
 .keys { display: flex; flex-direction: column; gap: 3px; margin-top: 2px; }
 .keys div { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--vj-fg-2); }
 .key { padding: 0 5px; border-radius: 3px; background: var(--vj-badge-bg); font-weight: 600; font-size: 11px; }
@@ -300,7 +300,7 @@ textarea {
   background: var(--vj-bg); border: 1px solid var(--vj-border);
 }
 .cmd-box svg { width: 14px; height: 14px; color: var(--vj-muted); flex: none; margin-top: 2px; }
-.cmd-box pre { margin: 0; flex: 1; font-family: var(--vj-mono); font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.cmd-box pre { margin: 0; flex: 1; font-family: var(--vj-mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .callout {
   display: flex; gap: 8px; padding: 8px 10px; border-radius: 4px; font-size: 11px; line-height: 16px;
