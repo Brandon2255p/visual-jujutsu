@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { CommandError } from "./jj/cli";
-import { JjRepo } from "./jj/repo";
+import { JjRepo, MIN_JJ_VERSION } from "./jj/repo";
 import { GitHub } from "./github/gh";
 import { layoutGraph } from "./shared/graph";
 import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData } from "./shared/protocol";
@@ -94,6 +94,12 @@ export class Controller implements vscode.Disposable {
     let error: string | null = null;
     try {
       if (!this.jjVersion) this.jjVersion = await this.repo.version();
+      if (!this.repo.atLeast(MIN_JJ_VERSION)) {
+        throw new Error(
+          `Visual Jujutsu needs jj ${MIN_JJ_VERSION} or later, but found ${this.jjVersion}. ` +
+            "Update jj: https://jj-vcs.github.io/jj/latest/install-and-setup/",
+        );
+      }
       const [revisions, lastOperation] = await Promise.all([
         this.repo.log(this.revset, config().get<number>("logLimit", 200)),
         this.repo.lastOperation(),

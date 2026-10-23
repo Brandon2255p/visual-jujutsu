@@ -2,43 +2,109 @@ import type { Bookmark, ChangedFile, FileStatus, RemoteBookmark, Revision } from
 import type { NewMode, RebaseSource, RebaseTarget } from "../shared/protocol";
 import { CommandLog, Runner } from "./cli";
 
+// Templates build JSON by string concatenation rather than json({ ... }), because
+// map literals need jj 0.46 and many users run older versions. Everything here
+// works on jj 0.27+ (stringify/escape_json); see MIN_JJ_VERSION.
+const str = (expr: string) => `stringify(${expr}).escape_json()`;
+const bool = (expr: string) => `if(${expr}, "true", "false")`;
+const list = (expr: string, item: string) => `"[" ++ ${expr}.map(|x| ${item}).join(",") ++ "]"`;
+const obj = (fields: Record<string, string>) =>
+  `"{" ++ ${Object.entries(fields)
+    .map(([key, value]) => `"\\"${key}\\":" ++ ${value}`)
+    .join(` ++ "," ++ `)} ++ "}"`;
+const TIME_FORMAT = `"%Y-%m-%dT%H:%M:%S%:z"`;
+
+// Only remote refs read .remote(): on local refs it is empty or an error, depending on the jj version.
+const LOCAL_REF = obj({
+  name: str("x.name()"),
+  target: list("x.added_targets()", str("x.commit_id()")),
+});
+const REMOTE_REF = obj({
+  name: str("x.name()"),
+  remote: str("x.remote()"),
+  target: list("x.added_targets()", str("x.commit_id()")),
+});
+
 /** One JSON object per revision; parsed by parseLogLine. */
-export const LOG_TEMPLATE = `json({
-  "change_id" => change_id,
-  "commit_id" => commit_id,
-  "short" => change_id.shortest(8),
-  "commit_short" => commit_id.short(8),
-  "description" => description,
-  "author" => author,
-  "parents" => parents.map(|p| p.commit_id()),
-  "local_bookmarks" => local_bookmarks,
-  "remote_bookmarks" => remote_bookmarks,
-  "tags" => tags,
-  "wc" => current_working_copy,
-  "immutable" => immutable,
-  "empty" => empty,
-  "conflict" => conflict,
-  "divergent" => divergent,
-  "mine" => mine,
-  "root" => root,
-  "trunk" => self.contained_in("trunk()"),
-}) ++ "\\n"`;
+export const LOG_TEMPLATE =
+  obj({
+    change_id: str("change_id"),
+    commit_id: str("commit_id"),
+    short: obj({ prefix: str("change_id.shortest(8).prefix()"), rest: str("change_id.shortest(8).rest()") }),
+    commit_short: str("commit_id.short(8)"),
+    description: str("description"),
+    author: obj({
+      name: str("author.name()"),
+      email: str("author.email()"),
+      timestamp: str(`author.timestamp().format(${TIME_FORMAT})`),
+    }),
+    parents: list("parents", str("x.commit_id()")),
+    local_bookmarks: list("local_bookmarks", LOCAL_REF),
+    remote_bookmarks: list("remote_bookmarks", REMOTE_REF),
+    tags: list("tags", LOCAL_REF),
+    wc: bool("current_working_copy"),
+    immutable: bool("immutable"),
+    empty: bool("empty"),
+    conflict: bool("conflict"),
+    divergent: bool("divergent"),
+    mine: bool("mine"),
+    root: bool("root"),
+    trunk: bool(`self.contained_in("trunk()")`),
+  }) + ` ++ "\\n"`;
 
-const FILES_TEMPLATE = `self.diff().files().map(|f| json({
-  "path" => f.path().display(),
-  "status" => f.status(),
-  "conflict" => f.target().conflict(),
-})).join("\\n") ++ "\\n---\\n" ++ self.diff().stat().files().map(|f| json({
-  "path" => f.path().display(),
-  "added" => f.lines_added(),
-  "removed" => f.lines_removed(),
-})).join("\\n")`;
+const FILE_STATUS_TEMPLATE = `self.diff().files().map(|f| ${obj({
+  path: str("f.path().display()"),
+  status: str("f.status()"),
+  conflict: bool("f.target().conflict()"),
+})}).join("\\n")`;
 
-const OP_TEMPLATE = `json({
-  "id" => self.id().short(),
-  "description" => self.description(),
-  "time" => self.time().end(),
-}) ++ "\\n"`;
+/** Per-file line counts in templates need jj 0.36 (DiffStats.files()). */
+const FILE_STATS_TEMPLATE = `self.diff().stat().files().map(|f| ${obj({
+  path: str("f.path().display()"),
+  added: `f.lines_added()`,
+  removed: `f.lines_removed()`,
+})}).join("\\n")`;
+
+const FILES_TEMPLATE = `${FILE_STATUS_TEMPLATE} ++ "\\n---\\n" ++ ${FILE_STATS_TEMPLATE}`;
+
+const OP_TEMPLATE =
+  obj({
+    id: str("self.id().short()"),
+    description: str("self.description()"),
+    time: str(`self.time().end().format(${TIME_FORMAT})`),
+  }) + ` ++ "\\n"`;
+
+export const MIN_JJ_VERSION = "0.27.0";
+
+/** Parses "0.45.0-8da2b7b…" (or "jj 0.45.0") into comparable numbers. */
+export function parseVersion(text: string): number[] {
+  const m = text.match(/(\d+)\.(\d+)\.(\d+)/);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : [0, 0, 0];
+}
+
+export function versionAtLeast(have: number[], want: string): boolean {
+  const w = parseVersion(want);
+  for (let i = 0; i < 3; i++) if (have[i] !== w[i]) return have[i] > w[i];
+  return true;
+}
+
+/** Line counts per file from `jj diff --git` output (fallback for jj < 0.36). */
+export function parseGitDiffCounts(diff: string): Map<string, { added: number; removed: number }> {
+  const counts = new Map<string, { added: number; removed: number }>();
+  let current: { added: number; removed: number } | null = null;
+  let inHunk = false;
+  for (const line of diff.split("\n")) {
+    const header = line.match(/^diff --git a\/(.*) b\/(.*)$/);
+    if (header) {
+      current = { added: 0, removed: 0 };
+      counts.set(header[2], current);
+      inHunk = false;
+    } else if (line.startsWith("@@")) inHunk = true;
+    else if (current && inHunk && line.startsWith("+")) current.added++;
+    else if (current && inHunk && line.startsWith("-")) current.removed++;
+  }
+  return counts;
+}
 
 interface RawRef {
   name: string;
@@ -95,6 +161,8 @@ export function parseFiles(output: string): ChangedFile[] {
 
 export class JjRepo {
   private readonly runner: Runner;
+  /** Set by version(); assume the newest jj until then. */
+  private versionParts = [Infinity, 0, 0];
 
   constructor(
     jjPath: () => string,
@@ -119,7 +187,13 @@ export class JjRepo {
   }
 
   async version(): Promise<string> {
-    return (await this.run(["--version"], true)).trim().replace(/^jj\s+/, "");
+    const version = (await this.run(["--version"], true)).trim().replace(/^jj\s+/, "");
+    this.versionParts = parseVersion(version);
+    return version;
+  }
+
+  atLeast(version: string) {
+    return versionAtLeast(this.versionParts, version);
   }
 
   async log(revset: string, limit: number): Promise<Revision[]> {
@@ -133,8 +207,15 @@ export class JjRepo {
   }
 
   async files(changeId: string): Promise<ChangedFile[]> {
-    const out = await this.run(["log", "--no-graph", "-r", changeId, "-T", FILES_TEMPLATE], true);
-    return parseFiles(out);
+    if (this.atLeast("0.36.0")) {
+      return parseFiles(await this.run(["log", "--no-graph", "-r", changeId, "-T", FILES_TEMPLATE], true));
+    }
+    const [status, diff] = await Promise.all([
+      this.run(["log", "--no-graph", "-r", changeId, "-T", FILE_STATUS_TEMPLATE], true),
+      this.run(["diff", "-r", changeId, "--git"], true),
+    ]);
+    const counts = parseGitDiffCounts(diff);
+    return parseFiles(status).map((f) => ({ ...f, ...(counts.get(f.path) ?? { added: 0, removed: 0 }) }));
   }
 
   async fileContent(changeId: string, path: string): Promise<string> {
@@ -195,7 +276,9 @@ export class JjRepo {
   }
 
   rebase(source: RebaseSource, changeId: string, target: RebaseTarget, destination: string, skipEmptied = false) {
-    const args = ["rebase", `-${source}`, changeId, `-${target}`, destination];
+    // --onto/-o replaced --destination/-d in jj 0.36.
+    const where = target === "o" && !this.atLeast("0.36.0") ? "-d" : `-${target}`;
+    const args = ["rebase", `-${source}`, changeId, where, destination];
     if (skipEmptied) args.push("--skip-emptied");
     return this.run(args);
   }
@@ -223,6 +306,8 @@ export class JjRepo {
     const a = ["git", "push"];
     for (const b of args.bookmarks ?? []) a.push("-b", b);
     for (const c of args.changes ?? []) a.push("-c", c);
+    // Before jj 0.36, pushing a bookmark the remote doesn't have yet needed --allow-new.
+    if (args.bookmarks?.length && !this.atLeast("0.36.0")) a.push("--allow-new");
     if (args.dryRun) a.push("--dry-run");
     return this.run(a);
   }
@@ -232,6 +317,7 @@ export class JjRepo {
   }
 
   redo() {
+    if (!this.atLeast("0.33.0")) return Promise.reject(new Error("Redo needs jj 0.33 or later. Use Undo, or the operation log."));
     return this.run(["redo"]);
   }
 }

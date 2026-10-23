@@ -6,13 +6,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { JjRepo } from "../src/jj/repo";
 import { layoutGraph } from "../src/shared/graph";
 
-// Integration tests against a real jj repo. Requires jj on PATH.
+// Integration tests against a real jj repo. Requires jj on PATH, or set JJ_BIN
+// to test another jj build (e.g. an older release).
+const JJ = process.env.JJ_BIN ?? "jj";
 let dir: string;
 let repo: JjRepo;
 const lines: string[] = [];
 
 function jj(...args: string[]) {
-  return execFileSync("jj", ["--color=never", ...args], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  return execFileSync(JJ, ["--color=never", ...args], { cwd: dir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
 function idOf(desc: string) {
@@ -34,7 +36,7 @@ beforeAll(() => {
   writeFileSync(join(dir, "d.txt"), "d\n");
   jj("new", "main", "-m", "side");
   writeFileSync(join(dir, "a.txt"), "a changed\n");
-  repo = new JjRepo(() => "jj", dir, { append: (l) => lines.push(l) });
+  repo = new JjRepo(() => JJ, dir, { append: (l) => lines.push(l) });
 });
 
 afterAll(() => {
@@ -42,6 +44,12 @@ afterAll(() => {
 });
 
 describe("JjRepo", () => {
+  it("reads the jj version", async () => {
+    const version = await repo.version();
+    expect(version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(repo.atLeast("0.27.0")).toBe(true);
+  });
+
   it("parses the log", async () => {
     const revs = await repo.log("all()", 100);
     const descs = revs.map((r) => r.description.trim());
@@ -51,12 +59,22 @@ describe("JjRepo", () => {
     const base = revs.find((r) => r.description.trim() === "base")!;
     expect(base.localBookmarks.map((b) => b.name)).toEqual(["main"]);
     expect(revs.find((r) => r.root)).toBeTruthy();
+    expect(base.inTrunk).toBe(false);
+    expect(Date.parse(wc.timestamp)).not.toBeNaN();
+    expect(wc.short.prefix.length + wc.short.rest.length).toBe(8);
+    expect(wc.parents).toHaveLength(1);
   });
 
   it("lists changed files with line counts", async () => {
     const files = await repo.files(idOf("feature one"));
     expect(files.map((f) => f.path).sort()).toEqual(["b.txt", "c.txt"]);
-    expect(files.every((f) => f.status === "added" && f.added === 1)).toBe(true);
+    expect(files.every((f) => f.status === "added" && f.added === 1 && f.removed === 0)).toBe(true);
+  });
+
+  it("reads the last operation", async () => {
+    const op = await repo.lastOperation();
+    expect(op?.id).toBeTruthy();
+    expect(Date.parse(op!.time)).not.toBeNaN();
   });
 
   it("describes, moves files and rebases", async () => {
@@ -80,7 +98,7 @@ describe("JjRepo", () => {
   });
 
   it("logs commands it runs", () => {
-    expect(lines.some((l) => l.startsWith("$ jj describe"))).toBe(true);
+    expect(lines.some((l) => /^\$ \S*jj describe/.test(l))).toBe(true);
   });
 
   it("lays out the graph", async () => {
