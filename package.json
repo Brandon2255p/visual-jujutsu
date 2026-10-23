@@ -223,7 +223,8 @@
     "package": "npx @vscode/vsce package --no-dependencies",
     "test:e2e": "npm run build && node test/e2e/run.mjs",
     "vscode:prepublish": "npm run build",
-    "screenshots": "npm run build && node scripts/screenshots.mjs"
+    "screenshots": "npm run build && node scripts/screenshots.mjs",
+    "gifs": "npm run build && node scripts/gifs.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

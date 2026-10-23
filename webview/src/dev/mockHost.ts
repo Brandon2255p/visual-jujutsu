@@ -1,7 +1,7 @@
 // Fake extension host for previewing the webview in a plain browser
 // (webview/dev.html). Not used inside VS Code.
 import type { HostMessage, WebviewMessage } from "../../../src/shared/protocol";
-import type { GraphState, Revision } from "../../../src/shared/types";
+import type { ChangedFile, GraphState, Revision } from "../../../src/shared/types";
 import { layoutGraph } from "../../../src/shared/graph";
 
 const now = Date.now();
@@ -71,6 +71,7 @@ const pullRequests: GraphState["pullRequests"] = [
 ];
 
 let revset = "";
+let lastOperation = { id: "3f2a1c8", description: "describe commit ryzxvmos", time: ago(2) };
 
 function state(): GraphState {
   return {
@@ -85,7 +86,7 @@ function state(): GraphState {
     revisions,
     layout: layoutGraph(revisions),
     pullRequests,
-    lastOperation: { id: "3f2a1c8", description: "describe commit ryzxvmos", time: ago(2) },
+    lastOperation,
     error: null,
   };
 }
@@ -129,22 +130,81 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       emit({ type: "state", state: state() });
       break;
     case "loadFiles":
-      emit({
-        type: "files",
-        changeId: message.changeId,
-        files: [
-          { path: "src/webview/graph.ts", status: "modified", added: 142, removed: 18, conflict: false },
-          { path: "src/webview/lanes.ts", status: "added", added: 88, removed: 0, conflict: false },
-          { path: "package.json", status: "modified", added: 3, removed: 1, conflict: false },
-        ],
-      });
+      emit({ type: "files", changeId: message.changeId, files: filesOf(message.changeId) });
       break;
-    case "action":
-      if (message.action.kind === "describe") {
-        const { changeId, message: text } = message.action;
-        revisions = revisions.map((r) => (r.changeId === changeId ? { ...r, description: text + "\n" } : r));
+    case "action": {
+      const a = message.action;
+      if (a.kind === "describe") {
+        revisions = revisions.map((r) => (r.changeId === a.changeId ? { ...r, description: a.message + "\n" } : r));
+      } else if (a.kind === "moveFiles") {
+        const moving = filesOf(a.from).filter((f) => a.paths.includes(f.path));
+        files.set(a.from, filesOf(a.from).filter((f) => !a.paths.includes(f.path)));
+        files.set(a.into, [...filesOf(a.into), ...moving]);
+      } else if (a.kind === "rebase" && a.target === "o" && a.destination) {
+        rebase(a.source, a.changeId, a.destination);
+      } else break;
+      const short = (id: string) => id.slice(0, 8);
+      const op =
+        a.kind === "describe" ? `describe commit ${short(a.changeId)}`
+        : a.kind === "moveFiles" ? `squash --from ${short(a.from)} --into ${short(a.into)}`
+        : `rebase -${a.source} ${short(a.changeId)} -o ${short(a.destination!)}`;
+      lastOperation = { id: Math.random().toString(16).slice(2, 9), description: op, time: new Date().toISOString() };
+      // Behave like the real host: show progress briefly, then the new state.
+      emit({ type: "busy", busy: true, label: "Working…" });
+      setTimeout(() => {
+        emit({ type: "busy", busy: false });
         emit({ type: "state", state: state() });
-      }
+      }, 350);
       break;
+    }
   }
+}
+
+// ---- Simulated repo changes, so the dev harness and GIFs show real results.
+
+const files = new Map<string, ChangedFile[]>();
+const f = (path: string, status: ChangedFile["status"], added: number, removed: number): ChangedFile => ({ path, status, added, removed, conflict: false });
+
+function filesOf(changeId: string): ChangedFile[] {
+  if (!files.has(changeId)) {
+    const id = changeId.slice(0, 8);
+    files.set(
+      changeId,
+      id === "ryzxvmos"
+        ? [f("src/webview/graph.ts", "modified", 142, 18), f("src/webview/lanes.ts", "added", 88, 0), f("package.json", "modified", 3, 1)]
+        : id === "mzkroyxu"
+          ? [f("src/jj/rebase.ts", "modified", 24, 6)]
+          : id === "vnolmswp"
+            ? [f("src/jj/repo.ts", "modified", 61, 40), f("src/jj/template.ts", "added", 35, 0)]
+            : [f("README.md", "modified", 4, 1)],
+    );
+  }
+  return files.get(changeId)!;
+}
+
+/** Applies `jj rebase -<source> <id> -o <dest>` to the sample graph. */
+function rebase(source: "r" | "s" | "b", changeId: string, dest: string) {
+  const byId = new Map(revisions.map((r) => [r.changeId, r]));
+  const rev = byId.get(changeId);
+  const target = byId.get(dest);
+  if (!rev || !target) return;
+  if (source === "r") {
+    // Children of the moved revision take over its parents.
+    revisions = revisions.map((r) => (r.parents.includes(rev.commitId) ? { ...r, parents: rev.parents } : r));
+  }
+  revisions = revisions.map((r) => (r.changeId === changeId ? { ...r, parents: [target.commitId] } : r));
+  revisions = topoSort(revisions);
+}
+
+/** Children before parents, otherwise keeping the original order (like jj log). */
+function topoSort(revs: Revision[]): Revision[] {
+  const out: Revision[] = [];
+  const done = new Set<string>();
+  const childrenLeft = (r: Revision) => revs.some((c) => !done.has(c.commitId) && c.parents.includes(r.commitId));
+  while (out.length < revs.length) {
+    const next = revs.find((r) => !done.has(r.commitId) && !childrenLeft(r)) ?? revs.find((r) => !done.has(r.commitId))!;
+    out.push(next);
+    done.add(next.commitId);
+  }
+  return out;
 }
