@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
 
 ### Fixed
 - Actions on a divergent revision failed on jj 0.36 and later ("Change ID … is divergent"), and divergent rows shared an ID in the graph. Divergent revisions are now addressed by commit ID.
