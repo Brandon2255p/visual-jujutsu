@@ -1,4 +1,4 @@
-import type { ChangedFile, EvologEntry, GraphState, Operation, Revision, PullRequest } from "./types";
+import type { ChangedFile, Density, EvologEntry, GraphState, Operation, Revision, PullRequest } from "./types";
 
 export type RebaseSource = "r" | "s" | "b";
 export type RebaseTarget = "o" | "A" | "B";
@@ -55,6 +55,7 @@ export type Action =
   | { kind: "cleanUpMergedPr"; number: number }
   | { kind: "switchRepo"; root: string }
   | { kind: "duplicate"; changeId: string }
+  | { kind: "setDensity"; density: Density }
   | { kind: "prChangeBase"; number: number }
   | { kind: "prMarkReady"; number: number }
   | { kind: "prClose"; number: number }

@@ -97,6 +97,7 @@ Features that are planned but not built yet already appear in the UI and say “
 | `visualJujutsu.ghPath` | `gh` | Path to the GitHub CLI |
 | `visualJujutsu.defaultRevset` | (jj's default) | Revset shown when the graph opens |
 | `visualJujutsu.savedRevsets` | `[]` | Extra presets: `[{ "name": "…", "revset": "…" }]` |
+| `visualJujutsu.density` | `comfortable` | `compact` fits more revisions (22px rows); also in the toolbar's … → Density |
 | `visualJujutsu.logLimit` | `200` | Maximum revisions to load |
 | `visualJujutsu.fetchBeforeRebaseOnTrunk` | `true` | Fetch before “Rebase on main” |
 | `visualJujutsu.pullRequestBookmarkPrefix` | `push-` | Prefix for bookmarks created for new PRs |

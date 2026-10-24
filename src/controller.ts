@@ -4,7 +4,7 @@ import { JjRepo, MIN_JJ_VERSION } from "./jj/repo";
 import { GitHub } from "./github/gh";
 import { layoutGraph } from "./shared/graph";
 import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData, RebasePreview } from "./shared/protocol";
-import type { ChangedFile, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
+import type { ChangedFile, Density, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
 import { shortChangeId } from "./shared/types";
 import { expectedBase, stackFor, stackPrs, syncPlan, trunkBookmark } from "./shared/stacks";
 import { revUri } from "./views/scm";
@@ -134,6 +134,7 @@ export class Controller implements vscode.Disposable {
       github: !!this.github,
       lastOperation,
       error,
+      density: config().get<Density>("density", "comfortable"),
     };
   }
 
@@ -428,6 +429,10 @@ export class Controller implements vscode.Disposable {
         return this.cleanUpMergedPr(action.number);
       case "switchRepo":
         // Handled by the graph view, which owns the active repo.
+        return false;
+      case "setDensity":
+        // A user setting: density is a preference, not a property of the repo.
+        await config().update("density", action.density, vscode.ConfigurationTarget.Global);
         return false;
       case "duplicate":
         this.busy("Duplicating…");

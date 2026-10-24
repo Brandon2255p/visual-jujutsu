@@ -26,7 +26,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 1.7 | Expand a row to see changed files with +/− counts; click a file to open a diff in VS Code's diff editor | P0 ✅ | `jj diff --stat`, `jj file show -r` |
 | 1.8 | Multi-select revisions (shift/cmd-click) for bulk actions | P1 ✅ | |
 | 1.9 | PR badge on bookmarks: PR number, state (open/draft/merged), CI status, review state | P1 ✅ | `gh pr list --json` |
-| 1.10 | Compact / comfortable density toggle (designed: Figma screen 14) | P2 | |
+| 1.10 | Compact / comfortable density toggle (Figma screen 14) | P2 ✅ | |
 
 ## 2. Editing revisions
 

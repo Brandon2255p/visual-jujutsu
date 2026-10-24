@@ -125,6 +125,8 @@ function evologOf(changeId: string): EvologEntry[] {
   ];
 }
 
+let density: GraphState["density"] = new URLSearchParams(location.search).has("compact") ? "compact" : "comfortable";
+
 function state(): GraphState {
   return {
     repoName: "visual-jujutsu",
@@ -146,6 +148,7 @@ function state(): GraphState {
     github: true,
     lastOperation: operations[0],
     error: null,
+    density,
   };
 }
 
@@ -220,6 +223,11 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       break;
     case "action": {
       const a = message.action;
+      if (a.kind === "setDensity") {
+        density = a.density;
+        emit({ type: "state", state: state() });
+        break;
+      }
       if (a.kind === "describe") {
         revisions = revisions.map((r) => (r.changeId === a.changeId ? { ...r, description: a.message + "\n" } : r));
       } else if (a.kind === "moveFiles") {

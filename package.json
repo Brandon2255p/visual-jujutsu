@@ -242,6 +242,19 @@
           "default": [],
           "description": "Extra revset presets shown in the graph's preset list."
         },
+        "visualJujutsu.density": {
+          "type": "string",
+          "enum": [
+            "comfortable",
+            "compact"
+          ],
+          "enumDescriptions": [
+            "28px rows (default)",
+            "22px rows and smaller descriptions, to fit more revisions"
+          ],
+          "default": "comfortable",
+          "description": "Row density in the graph, file lists, operation log and pull requests view."
+        },
         "visualJujutsu.logLimit": {
           "type": "number",
           "default": 200,

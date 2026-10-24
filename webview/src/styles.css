@@ -394,3 +394,13 @@ textarea {
 .muted { color: var(--vj-muted); }
 .pr-row .pr-more { opacity: 0; flex: none; align-self: center; }
 .pr-row:hover .pr-more, .pr-row .pr-more:focus-visible { opacity: 1; }
+
+/* ---- Density (visualJujutsu.density). Row heights must match ROW_HEIGHT in Gutter.tsx. ---- */
+.menu-check { width: 14px; flex: none; display: inline-flex; margin-right: 6px; }
+.menu-check svg { width: 14px; height: 14px; }
+.density-compact { --vj-row: 22px; }
+.density-compact .row .desc { font-size: 12px; }
+.density-compact .file, .density-compact .files .note { height: 20px; }
+.density-compact .op { padding-top: 3px; padding-bottom: 3px; }
+.density-compact .pr-row { padding-top: 3px; padding-bottom: 3px; }
+.density-compact .pr-section-head { padding-top: 4px; padding-bottom: 2px; }

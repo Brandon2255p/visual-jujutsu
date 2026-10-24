@@ -8,6 +8,8 @@ export type MenuEntry =
       label: string;
       kb?: string;
       disabled?: boolean;
+      /** Shows a check column; true marks the current choice. */
+      checked?: boolean;
       run?: () => void;
       children?: MenuEntry[];
     };
@@ -60,6 +62,7 @@ export function Menu({ entries, x, y, onClose, flipWidth = 0, root = true }: Pro
     };
   }, []);
 
+  const hasChecks = entries.some((e) => e !== "-" && e.checked !== undefined);
   const selectable = entries.map((e, i) => (e !== "-" && !e.disabled ? i : -1)).filter((i) => i >= 0);
 
   const openSub = (i: number, el: HTMLElement) => {
@@ -111,6 +114,7 @@ export function Menu({ entries, x, y, onClose, flipWidth = 0, root = true }: Pro
               }}
               onClick={(ev) => activate(i, ev.currentTarget as HTMLElement)}
             >
+              {hasChecks && <span class="menu-check">{e.checked && <Icon name="check" />}</span>}
               <span class="label">{e.label}</span>
               {e.kb && <span class="kb">{e.kb}</span>}
               {e.children && <Icon name="chevron-right" />}

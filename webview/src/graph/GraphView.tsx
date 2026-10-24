@@ -5,7 +5,7 @@ import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { Icon } from "../icons";
 import { act, notSupported, onMessage, post } from "../vscode";
 import { cls, firstLine, relativeTime, shortId, splitPath } from "../util";
-import { Gutter, gutterWidth } from "./Gutter";
+import { Gutter, ROW_HEIGHT, gutterWidth } from "./Gutter";
 import { Menu, MenuEntry } from "./Menu";
 import { fileMenu, revisionMenu } from "./menus";
 import { EvoLog, EvologTarget } from "./EvoLog";
@@ -77,6 +77,11 @@ export function GraphView() {
     post({ type: "ready" });
     return () => void off();
   }, []);
+
+  // On <html> so the CSS variables reach menus and every view.
+  useEffect(() => {
+    document.documentElement.classList.toggle("density-compact", state?.density === "compact");
+  }, [state?.density]);
 
   const revisions = state?.revisions ?? [];
   const byId = useMemo(() => new Map(revisions.map((r) => [r.changeId, r])), [revisions]);
@@ -307,6 +312,7 @@ export function GraphView() {
 
   const laneCount = state.layout.laneCount;
   const gutterW = gutterWidth(laneCount);
+  const rowHeight = ROW_HEIGHT[state.density];
   const presetMatch = state.presets.find((p) => p.revset === state.revset);
   const mine = state.presets.find((p) => p.name === "Mine");
   const hint = dropHint();
@@ -370,6 +376,15 @@ export function GraphView() {
                   },
                 },
                 { label: "Show command log", run: () => act({ kind: "showCommandLog" }) },
+                "-",
+                {
+                  label: "Density",
+                  children: (["comfortable", "compact"] as const).map((d) => ({
+                    label: d === "comfortable" ? "Comfortable" : "Compact",
+                    checked: state.density === d,
+                    run: () => act({ kind: "setDensity", density: d }),
+                  })),
+                },
                 { label: "Settings", run: () => act({ kind: "openSettings" }) },
               ],
             });
@@ -472,6 +487,7 @@ export function GraphView() {
                   rev={rev}
                   row={row}
                   laneCount={laneCount}
+                  rowHeight={rowHeight}
                   gutterW={gutterW}
                   selected={selected.includes(rev.changeId)}
                   expanded={expanded.has(rev.changeId)}
@@ -597,6 +613,7 @@ interface BlockProps {
   rev: Revision;
   row: GraphRow;
   laneCount: number;
+  rowHeight: number;
   gutterW: number;
   selected: boolean;
   expanded: boolean;
@@ -638,7 +655,7 @@ function RevisionBlock(p: BlockProps) {
 
   return (
     <div class="block" data-id={rev.changeId}>
-      <Gutter row={p.row} laneCount={p.laneCount} kind={kind} />
+      <Gutter row={p.row} laneCount={p.laneCount} kind={kind} height={p.rowHeight} />
       <div
         class={cls(
           "row",

@@ -1,8 +1,8 @@
 import type { GraphRow, NodeKind } from "../../../src/shared/types";
 
 const LANE = 16;
-const ROW = 28;
-const CENTER = ROW / 2;
+/** Row heights for the two densities; must match --vj-row in styles.css. */
+export const ROW_HEIGHT = { comfortable: 28, compact: 22 } as const;
 
 export const laneX = (col: number) => 10 + col * LANE;
 export const gutterWidth = (laneCount: number) => laneCount * LANE + 12;
@@ -11,8 +11,10 @@ export const gutterWidth = (laneCount: number) => laneCount * LANE + 12;
  * Draws one row's slice of the graph. The SVG is as tall as the row block,
  * so lanes running below the row also pass through expanded content.
  */
-export function Gutter({ row, laneCount, kind }: { row: GraphRow; laneCount: number; kind: NodeKind }) {
+export function Gutter({ row, laneCount, kind, height = ROW_HEIGHT.comfortable }: { row: GraphRow; laneCount: number; kind: NodeKind; height?: number }) {
   const width = gutterWidth(laneCount);
+  const ROW = height;
+  const CENTER = height / 2;
   return (
     <svg class="gutter" width={width} height="100%">
       {row.segments.map((s, i) => {

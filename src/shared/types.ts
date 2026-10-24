@@ -127,6 +127,8 @@ export interface RepoInfo {
   name: string;
 }
 
+export type Density = "comfortable" | "compact";
+
 export interface RevsetPreset {
   name: string;
   revset: string;
@@ -149,6 +151,8 @@ export interface GraphState {
   github: boolean;
   lastOperation: Operation | null;
   error: string | null;
+  /** visualJujutsu.density */
+  density: Density;
 }
 
 export function nodeKind(rev: Revision): NodeKind {
