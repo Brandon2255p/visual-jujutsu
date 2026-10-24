@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 ### Added
 - **Operation log** view (history button): every jj operation with time and user; restore the repo to any of them (`jj op restore`).
@@ -26,7 +26,7 @@
 ### Fixed
 - Repos opened through a symlinked path (for example `/var` on macOS) now match the files VS Code opens.
 
-## 0.1.1 (pre-release)
+## 0.1.1
 
 ### Fixed
 - The graph failed to load on jj older than 0.46 ("Failed to parse template: Syntax error"). Visual Jujutsu now works with jj 0.27 and later.
