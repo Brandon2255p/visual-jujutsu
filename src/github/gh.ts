@@ -94,4 +94,26 @@ export class GitHub {
   editBase(pr: number, base: string) {
     return this.runner.run(["pr", "edit", String(pr), "--repo", this.slug, "--base", base]);
   }
+
+  /** Whether the official gh stack extension (github/gh-stack) is installed. */
+  async hasStackExtension(): Promise<boolean> {
+    try {
+      const out = await this.runner.run(["extension", "list"], { quiet: true });
+      return /\bgithub\/gh-stack\b/.test(out);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Links open PRs (bottom to top) into a native GitHub stack with
+   * `gh stack link`. PR URLs are never read as branches or stack numbers, so
+   * it pushes nothing; GH_REPO names the repo, since a jj repo may have no
+   * .git for gh to read.
+   */
+  linkStack(prUrls: string[], base: string) {
+    return this.runner.run(["stack", "link", "--base", base, ...prUrls], {
+      env: { GH_REPO: this.slug, GH_STACK_NO_UPDATE_NOTIFIER: "1" },
+    });
+  }
 }

@@ -59,6 +59,8 @@ For full control, **Open rebase dialog…** shows every `jj rebase` option, a de
 
 The **pull requests view** groups your PRs into stacks with checks and review state. **Create PRs for stack** opens a PR for every revision in a stack, and **Sync stack** pushes the whole stack and fixes PR bases after a rebase. When a PR merges, **Clean up** fetches, moves the work on top of it onto main and deletes the bookmark.
 
+If the official [`gh stack`](https://github.com/github/gh-stack) extension is installed, **Create PRs for stack** and **Sync stack** also link the PRs into a native GitHub stack (`gh stack link`), so GitHub shows them as a stack and can merge them bottom-up. Turn this off with `visualJujutsu.linkGitHubStacks`.
+
 <p align="center">
   <img src="docs/images/create-pr.png" width="720" alt="Create pull request form with head, base, title, description and the stack">
 </p>
@@ -96,6 +98,7 @@ Features that are planned but not built yet already appear in the UI and say “
 | `visualJujutsu.logLimit` | `200` | Maximum revisions to load |
 | `visualJujutsu.fetchBeforeRebaseOnTrunk` | `true` | Fetch before “Rebase on main” |
 | `visualJujutsu.pullRequestBookmarkPrefix` | `push-` | Prefix for bookmarks created for new PRs |
+| `visualJujutsu.linkGitHubStacks` | `true` | Link stacked PRs as a native GitHub stack when `gh stack` is installed |
 | `visualJujutsu.confirmDestructiveActions` | `true` | Ask before abandoning or moving bookmarks backwards |
 
 ## Development

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Native GitHub stacks**: when the [gh stack](https://github.com/github/gh-stack) extension is installed, **Create PRs for stack** and **Sync stack** link the stack's PRs with `gh stack link`. Setting: `visualJujutsu.linkGitHubStacks` (on by default).
+
 ## 0.2.1
 
 ### Fixed

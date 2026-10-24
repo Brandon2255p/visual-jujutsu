@@ -115,3 +115,11 @@ export function groupPullRequests(prs: PullRequest[], localBookmarks: string[], 
     .sort((a, b) => (b.mergedAt ?? "").localeCompare(a.mergedAt ?? ""));
   return { stacks, mergedWithBookmark };
 }
+
+/** The stack's open PRs, bottom first (the order `gh stack link` takes). */
+export function stackPrs(stack: StackEntry[]): PullRequest[] {
+  return stack
+    .filter((s) => s.pr && !s.revision.inTrunk)
+    .map((s) => s.pr!)
+    .reverse();
+}

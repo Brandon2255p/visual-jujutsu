@@ -6,7 +6,7 @@ import { layoutGraph } from "./shared/graph";
 import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData, RebasePreview } from "./shared/protocol";
 import type { ChangedFile, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
 import { shortChangeId } from "./shared/types";
-import { expectedBase, stackFor, syncPlan, trunkBookmark } from "./shared/stacks";
+import { expectedBase, stackFor, stackPrs, syncPlan, trunkBookmark } from "./shared/stacks";
 import { revUri } from "./views/scm";
 
 const ROADMAP_URL = "https://github.com/Brandon2255p/visual-jujutsu/blob/main/FEATURES.md";
@@ -733,6 +733,26 @@ export class Controller implements vscode.Disposable {
     return this.pullRequests;
   }
 
+  /**
+   * Links the stack's open PRs into a native GitHub stack with `gh stack link`,
+   * when that extension is installed and the setting allows it. Failures are
+   * reported but don't undo the push or PRs.
+   */
+  private async linkGitHubStack(changeId: string) {
+    const github = this.github;
+    if (!github || !config().get<boolean>("linkGitHubStacks", true) || !(await github.hasStackExtension())) return;
+    const revisions = await this.stackRevisions(changeId);
+    const prs = stackPrs(stackFor(revisions, changeId, await this.freshPullRequests()));
+    if (prs.length < 2) return;
+    this.busy("Linking the stack on GitHub…");
+    try {
+      await github.linkStack(prs.map((p) => p.url), trunkBookmark(revisions));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      void vscode.window.showWarningMessage(`The PRs are stacked, but gh stack link failed: ${message}`);
+    }
+  }
+
   /** Pushes every bookmark in the stack and points each PR's base at the PR below it. */
   private async syncStack(changeId: string) {
     const github = this.requireGitHub();
@@ -746,6 +766,7 @@ export class Controller implements vscode.Disposable {
       .split("\n")
       .filter((l) => l.trim() && !/dry-run requested|nothing changed/i.test(l));
     if (!pushLines.length && !plan.retarget.length) {
+      await this.linkGitHubStack(changeId);
       void vscode.window.showInformationMessage("This stack is already in sync with GitHub.");
       return false;
     }
@@ -763,6 +784,7 @@ export class Controller implements vscode.Disposable {
       this.busy(`Updating PR #${r.pr.number}…`);
       await github.editBase(r.pr.number, r.to);
     }
+    await this.linkGitHubStack(changeId);
     this.prsFetchedAt = 0;
     return true;
   }
@@ -819,6 +841,7 @@ export class Controller implements vscode.Disposable {
       }
       base = e.bookmark!;
     }
+    await this.linkGitHubStack(changeId);
     this.prsFetchedAt = 0;
     void vscode.window.showInformationMessage(`Created ${urls.length} pull request${urls.length === 1 ? "" : "s"}.`, "Open on GitHub").then((c) => {
       if (c) urls.forEach((u) => void vscode.env.openExternal(vscode.Uri.parse(u)));

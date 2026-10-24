@@ -257,6 +257,11 @@
           "default": "push-",
           "description": "Prefix for bookmarks created when you open a pull request from a revision without one."
         },
+        "visualJujutsu.linkGitHubStacks": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "After **Create PRs for stack** and **Sync stack**, link the PRs into a native GitHub stack with `gh stack link`. Only runs when the [gh stack](https://github.com/github/gh-stack) extension is installed."
+        },
         "visualJujutsu.confirmDestructiveActions": {
           "type": "boolean",
           "default": true,

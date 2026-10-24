@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { expectedBase, groupPullRequests, stackFor, syncPlan, trunkBookmark } from "../src/shared/stacks";
+import { expectedBase, groupPullRequests, stackFor, stackPrs, syncPlan, trunkBookmark } from "../src/shared/stacks";
 import type { PullRequest, Revision } from "../src/shared/types";
 
 function rev(id: string, parent: string | null, bookmark: string | null, extra: Partial<Revision> = {}): Revision {
@@ -86,5 +86,10 @@ describe("stacks", () => {
     expect(groupPullRequests(prs, []).stacks.map((s) => s.map((p) => p.number))).toEqual([[2], [1]]);
     const grouped = groupPullRequests(prs, [], new Map([["feat-c", "feat-a"]]));
     expect(grouped.stacks.map((s) => s.map((p) => p.number))).toEqual([[2, 1]]);
+  });
+
+  it("lists the stack's PRs bottom first for gh stack link", () => {
+    const stack = stackFor(revisions, "d", [pr(1, "feat-a", "main"), pr(2, "feat-c", "feat-a"), pr(9, "main", "x")]);
+    expect(stackPrs(stack).map((p) => p.number)).toEqual([1, 2]);
   });
 });

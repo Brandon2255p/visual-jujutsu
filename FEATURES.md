@@ -90,7 +90,7 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 | 6.1 | **Create a PR** from a revision: pushes (creating a bookmark if needed), then opens a form with title/body pre-filled from the description, base branch, draft toggle | P0 ✅ | `jj git push -c/-b`, `gh pr create --head --base` |
 | 6.2 | **Move a PR to a new revision**: pick the PR's bookmark, choose a target revision, force-move and push | P0 ✅ | `jj bookmark set NAME -r Y --allow-backwards && jj git push -b NAME` |
 | 6.3 | Open the PR in the browser; copy its URL | P0 ✅ | `gh pr view --web` |
-| 6.4 | **Stacked PRs**: create a PR per revision in a stack, each based on the one below; when the stack is rebased, update bases and push everything | P1 ✅ | `gh pr create/edit --base` |
+| 6.4 | **Stacked PRs**: create a PR per revision in a stack, each based on the one below; when the stack is rebased, update bases and push everything; link them as a native GitHub stack when `gh stack` is installed | P1 ✅ | `gh pr create/edit --base`, `gh stack link` |
 | 6.5 | PR status in the graph (state, checks, reviews) | P1 ✅ | `gh pr list --json` |
 | 6.6 | Change the base, mark ready, or close a PR | P2 | `gh pr edit/ready/close` |
 | 6.7 | After a PR merges: offer to fetch, rebase the rest of the stack on main, and delete the bookmark | P1 ✅ | |
