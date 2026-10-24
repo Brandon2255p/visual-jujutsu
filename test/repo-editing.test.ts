@@ -137,6 +137,20 @@ describe("bookmarks", () => {
     expect(report).toMatch(/dry-run/i);
     expect((await repo.remoteBookmarks()).map((b) => b.name)).not.toContain("stack-a");
   });
+
+  it("pushes new bookmarks without user config", async () => {
+    await repo.push({ revisions: `trunk()..${idOf("two")}` });
+    const remote = (await repo.remoteBookmarks()).filter((b) => b.remote === "origin").map((b) => b.name);
+    expect(remote).toEqual(expect.arrayContaining(["stack-a", "stack-b"]));
+    jj("bookmark", "create", "solo", "-r", idOf("one"));
+    await repo.push({ bookmarks: ["solo"] });
+    expect((await repo.remoteBookmarks()).map((b) => b.name)).toContain("solo");
+  });
+
+  it("pushes a change by creating a bookmark for it", async () => {
+    await repo.push({ changes: [idOf("two")] });
+    expect((await repo.remoteBookmarks()).some((b) => b.name.startsWith("push-"))).toBe(true);
+  });
 });
 
 describe("operation log", () => {

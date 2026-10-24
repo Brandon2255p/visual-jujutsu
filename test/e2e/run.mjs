@@ -8,6 +8,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../..");
+// An empty jj user config, like CI, so local settings can't hide failures.
+process.env.JJ_CONFIG = join(mkdtempSync(join(tmpdir(), "vj-e2e-jjconfig-")), "config.toml");
+writeFileSync(process.env.JJ_CONFIG, 'user.name = "Test"\nuser.email = "test@example.com"\n');
 const repo = mkdtempSync(join(tmpdir(), "vj-e2e-"));
 const other = mkdtempSync(join(tmpdir(), "vj-e2e-other-"));
 const jj = (...a) => execFileSync("jj", ["--color=never", ...a], { cwd: repo, stdio: ["ignore", "pipe", "pipe"] });

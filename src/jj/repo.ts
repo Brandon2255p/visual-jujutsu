@@ -455,15 +455,43 @@ export class JjRepo {
    * Pushes bookmarks (by name, or every bookmark in `revisions`) and changes.
    * With dryRun, resolves with jj's report of what would change.
    */
-  push(args: { bookmarks?: string[]; revisions?: string; changes?: string[]; dryRun?: boolean } = {}) {
+  async push(args: { bookmarks?: string[]; revisions?: string; changes?: string[]; dryRun?: boolean } = {}) {
     const a = ["git", "push"];
     for (const b of args.bookmarks ?? []) a.push("-b", b);
     if (args.revisions) a.push("-r", args.revisions);
     for (const c of args.changes ?? []) a.push("-c", c);
-    // Before jj 0.42, pushing a bookmark the remote doesn't have yet needs --allow-new (deprecated in 0.36, removed in 0.42).
-    if ((args.bookmarks?.length || args.revisions) && !this.atLeast("0.42.0")) a.push("--allow-new");
+    if (args.bookmarks?.length || args.revisions) {
+      // Before jj 0.42, pushing a bookmark the remote doesn't have yet needs --allow-new (deprecated in 0.36, removed in 0.42).
+      if (!this.atLeast("0.42.0")) a.push("--allow-new");
+      else {
+        const names = [...(args.bookmarks ?? [])];
+        if (args.revisions) names.push(...(await this.log(args.revisions, 1000)).flatMap((r) => r.localBookmarks.map((b) => b.name)));
+        await this.trackNewBookmarks(names);
+      }
+    }
     if (args.dryRun) a.push("--dry-run");
     return this.runner.run(a, { includeStderr: args.dryRun });
+  }
+
+  /**
+   * From jj 0.42, jj refuses to push a bookmark the remote doesn't have until
+   * it is tracked (unless remotes.<name>.auto-track-bookmarks covers it).
+   */
+  private async trackNewBookmarks(names: string[]) {
+    if (!names.length) return;
+    const remote = await this.pushRemote();
+    const tracked = new Set((await this.remoteBookmarks()).filter((b) => b.remote === remote && b.tracked).map((b) => b.name));
+    const missing = [...new Set(names)].filter((n) => !tracked.has(n));
+    if (missing.length) await this.run(["bookmark", "track", ...missing.map((n) => `${n}@${remote}`)]);
+  }
+
+  /** The remote jj git push uses: git.push, else origin. */
+  private async pushRemote() {
+    try {
+      return (await this.run(["config", "get", "git.push"], true)).trim() || "origin";
+    } catch {
+      return "origin";
+    }
   }
 
   undo() {
