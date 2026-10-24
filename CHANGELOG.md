@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1
+
+### Fixed
+- Pushing a bookmark the remote doesn't have yet failed on jj 0.42 and later ("Refusing to create new remote bookmark") unless `remotes.<name>.auto-track-bookmarks` was set. New bookmarks are now tracked before pushing. This affected pushing a bookmark, Push stack, Sync stack and creating pull requests.
+- Bookmark chips were unreadable on a selected row in themes whose selection colour matches the chip colour.
+
 ## 0.2.0
 
 ### Added
