@@ -195,6 +195,13 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .chip-conflict { border-color: var(--vj-conflict); color: var(--vj-conflict); }
 .chip-tag { background: var(--vj-badge-bg); color: var(--vj-fg-2); }
 .chip-here { background: var(--vj-accent); color: var(--vj-on-accent); border-radius: 8px; padding: 0 7px; }
+/* Chip colours can match the selection background, so selected rows use the selection's foreground. */
+.row.selected .chip:not(.chip-here) {
+  background: color-mix(in srgb, var(--vj-selected-fg) 20%, transparent); color: var(--vj-selected-fg); border-color: transparent;
+}
+.row.selected .chip-conflict, .row.selected .chip-remote { border-color: color-mix(in srgb, var(--vj-selected-fg) 60%, transparent); background: transparent; }
+.row.selected .chip-here { box-shadow: 0 0 0 1px var(--vj-selected-fg); }
+.row.selected .change-id .r { color: color-mix(in srgb, var(--vj-selected-fg) 70%, transparent); }
 .pr {
   display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 6px 0 4px; border-radius: 8px;
   background: var(--vj-badge-bg); font-size: 11px; font-weight: 600; cursor: pointer; flex: none;
