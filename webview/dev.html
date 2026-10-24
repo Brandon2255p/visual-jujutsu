@@ -11,6 +11,24 @@
 </head>
 <body data-mode="graph">
 <div id="app"></div>
+<script>
+  // ?light: VS Code's Light+ theme colours, as VS Code would set them on a webview.
+  if (location.search.includes("light")) {
+    document.body.classList.add("vscode-light");
+    const vars = {
+      "sideBar-background": "#f3f3f3", "editor-background": "#ffffff", "foreground": "#616161",
+      "descriptionForeground": "#717171", "list-hoverBackground": "#e8e8e8",
+      "list-activeSelectionBackground": "#0060c0", "list-activeSelectionForeground": "#ffffff",
+      "list-inactiveSelectionBackground": "#e4e6f1", "focusBorder": "#0090f1",
+      "input-background": "#ffffff", "input-foreground": "#616161", "input-border": "#cecece",
+      "panel-border": "#e5e5e5", "widget-border": "#d4d4d4", "editorWidget-background": "#f3f3f3",
+      "menu-background": "#ffffff", "menu-foreground": "#616161", "button-secondaryBackground": "#e5e5e5",
+      "button-secondaryForeground": "#3b3b3b", "badge-background": "#c4c4c4",
+    };
+    for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(`--vscode-${k}`, v);
+    document.querySelector("style").textContent += "body { background: #f3f3f3; }";
+  }
+</script>
 <script src="../dist/webview.js"></script>
 </body>
 </html>

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- Light themes: the selected row uses the theme's softer selection colour with a thin accent bar, instead of the strong blue, so bookmark chips and IDs keep their colours. Dark and high-contrast themes are unchanged.
+
 ## 1.0.0
 
 ### Fixed

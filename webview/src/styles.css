@@ -57,6 +57,16 @@
   --vj-lane: 16px;
 }
 
+/* Light themes: the active-selection colour is a strong blue with white text,
+   which is loud for a row that stays selected. Use the softer inactive
+   selection colour instead, so chips and IDs keep their own colours, and mark
+   the row with a thin accent bar. Dark and high-contrast themes are unchanged. */
+body.vscode-light {
+  --vj-selected: var(--vscode-list-inactiveSelectionBackground, #e4e6f1);
+  --vj-selected-fg: var(--vscode-list-inactiveSelectionForeground, var(--vj-fg));
+}
+body.vscode-light :is(.row, .op).selected { box-shadow: inset 2px 0 0 var(--vj-focus); }
+
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
@@ -200,12 +210,12 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .chip-tag { background: var(--vj-badge-bg); color: var(--vj-fg-2); }
 .chip-here { background: var(--vj-accent); color: var(--vj-on-accent); border-radius: 8px; padding: 0 7px; }
 /* Chip colours can match the selection background, so selected rows use the selection's foreground. */
-.row.selected .chip:not(.chip-here) {
+body:not(.vscode-light) .row.selected .chip:not(.chip-here) {
   background: color-mix(in srgb, var(--vj-selected-fg) 20%, transparent); color: var(--vj-selected-fg); border-color: transparent;
 }
-.row.selected .chip-conflict, .row.selected .chip-remote { border-color: color-mix(in srgb, var(--vj-selected-fg) 60%, transparent); background: transparent; }
-.row.selected .chip-here { box-shadow: 0 0 0 1px var(--vj-selected-fg); }
-.row.selected .change-id .r { color: color-mix(in srgb, var(--vj-selected-fg) 70%, transparent); }
+body:not(.vscode-light) .row.selected :is(.chip-conflict, .chip-remote) { border-color: color-mix(in srgb, var(--vj-selected-fg) 60%, transparent); background: transparent; }
+body:not(.vscode-light) .row.selected .chip-here { box-shadow: 0 0 0 1px var(--vj-selected-fg); }
+body:not(.vscode-light) .row.selected .change-id .r { color: color-mix(in srgb, var(--vj-selected-fg) 70%, transparent); }
 .pr {
   display: inline-flex; align-items: center; gap: 3px; height: 16px; padding: 0 6px 0 4px; border-radius: 8px;
   background: var(--vj-badge-bg); font-size: 11px; font-weight: 600; cursor: pointer; flex: none;
