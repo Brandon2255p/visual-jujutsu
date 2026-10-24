@@ -15,6 +15,16 @@
 - **Push preview**: pushing from the toolbar or a stack first shows jj's dry-run report and asks to confirm.
 - **Resolve conflicts** with your merge tool (`jj resolve` in a terminal); open conflicted files in the working copy.
 - Command palette: Absorb, Split, Rebase All My Stacks on Main, Track / Untrack Remote Bookmarks.
+- **Pull requests view** (PR button in the toolbar): your PRs grouped into stacks with checks and review state, a warning when a PR's base is out of date, and other open PRs.
+- **Stacked PRs**: **Create PRs for stack** opens a PR for every revision between trunk and the one you pick, each based on the one below. **Sync stack** pushes every bookmark in a stack and fixes PR bases after a rebase, showing the plan first.
+- **Post-merge cleanup**: when a PR with a local bookmark is merged, **Clean up** fetches, rebases the work on top of it onto trunk, abandons the merged revisions and deletes the bookmark.
+- **Rebase preview** in the rebase dialog: the graph before and after, and which revisions would become conflicted. Nothing changes until you press Rebase.
+- **Source Control view**: the working copy's changed files (conflicts listed first), gutter quick diffs against `@-`, and a message box that describes `@`.
+- **Multi-root**: every jj repo in the workspace (including nested repos) gets its own graph and Source Control entry; switch with the repository picker or **Switch Repository**.
+- PR badges show the review state in their tooltip.
+
+### Fixed
+- Repos opened through a symlinked path (for example `/var` on macOS) now match the files VS Code opens.
 
 ## 0.1.1 (pre-release)
 

@@ -47,7 +47,7 @@ Right-click any revision for describe, edit, new (on top, insert after, insert b
 
 ## Rebase dialog
 
-For full control, **Open rebase dialog…** shows every `jj rebase` option, a destination picker, and the command that will run.
+For full control, **Open rebase dialog…** shows every `jj rebase` option, a destination picker, and the command that will run. **Preview** shows the graph before and after and which revisions would become conflicted, without changing anything.
 
 <p align="center">
   <img src="docs/images/rebase-dialog.png" width="720" alt="Rebase dialog with what-to-move and where-to-put-it options">
@@ -56,6 +56,8 @@ For full control, **Open rebase dialog…** shows every `jj rebase` option, a de
 ## Pull requests
 
 **Create pull request…** pushes the bookmark (creating one if the revision has none) and opens the PR with `gh`. If the revision below already has a PR, the new PR's base is set to that PR's bookmark, so stacked PRs work out of the box. **Move pull request here…** moves a PR's bookmark to another revision and pushes it.
+
+The **pull requests view** groups your PRs into stacks with checks and review state. **Create PRs for stack** opens a PR for every revision in a stack, and **Sync stack** pushes the whole stack and fixes PR bases after a rebase. When a PR merges, **Clean up** fetches, moves the work on top of it onto main and deletes the bookmark.
 
 <p align="center">
   <img src="docs/images/create-pr.png" width="720" alt="Create pull request form with head, base, title, description and the stack">
@@ -73,6 +75,8 @@ For full control, **Open rebase dialog…** shows every `jj rebase` option, a de
 - **Resolve conflicts** with your merge tool from the revision or file menu.
 - A **command log** (“Show commands”) listing every `jj` and `gh` command the extension ran.
 - A status bar item showing the working copy's change ID, description and conflicts.
+- A **Source Control** entry for each repo: the working copy's changes, gutter diffs against `@-`, and a message box that describes `@`.
+- **Multi-root** workspaces: every jj repo (including nested ones) is found; switch between them with the repository picker above the graph.
 
 Features that are planned but not built yet already appear in the UI and say “not supported yet”. See [FEATURES.md](FEATURES.md) for the roadmap.
 

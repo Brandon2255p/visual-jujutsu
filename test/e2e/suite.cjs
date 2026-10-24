@@ -33,6 +33,18 @@ exports.run = async function run() {
   assert.ok((await vscode.commands.executeCommand("visualJujutsu.internal.debugState")).webviewReady, "webview script started");
 
   step("webview ok");
+  const debug = () => vscode.commands.executeCommand("visualJujutsu.internal.debugState");
+  const waitFor = async (what, check) => {
+    for (let i = 0; i < 50 && !(await check()); i++) await sleep(200);
+    assert.ok(await check(), what);
+  };
+  await waitFor("both workspace repos found", async () => (await debug()).repos.length === 2);
+  assert.strictEqual((await debug()).active, cwd, "first folder's repo is shown");
+
+  // Source Control lists the working copy's changes.
+  const scmPaths = async () => (await debug()).repos.find((r) => r.root === cwd).scm;
+  await waitFor("Source Control lists b.txt", async () => (await scmPaths()).includes("b.txt"));
+  step("scm");
   const children = async (rev) => (await jj("log", "--no-graph", "-r", `children(${rev})`, "-T", 'change_id ++ "\n"')).split("\n").filter(Boolean);
   const base = await idOf("base");
   const feature = await idOf("feature");
@@ -68,6 +80,9 @@ exports.run = async function run() {
   // Absorb a working-copy edit back into the revision that added the file.
   await vscode.commands.executeCommand("visualJujutsu.newRevision", feature);
   writeFileSync(join(cwd, "b.txt"), "two (absorbed)\n");
+  writeFileSync(join(cwd, "c.txt"), "new file\n");
+  await vscode.commands.executeCommand("visualJujutsu.refresh");
+  await waitFor("Source Control picks up new files", async () => (await scmPaths()).includes("c.txt"));
   await vscode.commands.executeCommand("visualJujutsu.absorb", "@");
   step("absorb");
   assert.strictEqual(await jj("file", "show", "-r", feature, "b.txt"), "two (absorbed)");

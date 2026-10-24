@@ -16,6 +16,21 @@ interface RawPr {
   state: PullRequest["state"];
   isDraft: boolean;
   statusCheckRollup: { conclusion?: string; status?: string; state?: string }[] | null;
+  reviewDecision: string | null;
+  mergedAt: string | null;
+}
+
+function review(decision: string | null): PullRequest["review"] {
+  switch (decision) {
+    case "APPROVED":
+      return "approved";
+    case "CHANGES_REQUESTED":
+      return "changes_requested";
+    case "REVIEW_REQUIRED":
+      return "review_required";
+    default:
+      return "none";
+  }
 }
 
 function rollup(checks: RawPr["statusCheckRollup"]): PullRequest["checks"] {
@@ -50,7 +65,7 @@ export class GitHub {
         "--limit",
         "100",
         "--json",
-        "number,title,url,headRefName,baseRefName,state,isDraft,statusCheckRollup",
+        "number,title,url,headRefName,baseRefName,state,isDraft,statusCheckRollup,reviewDecision,mergedAt",
       ],
       { quiet: true },
     );
@@ -63,6 +78,8 @@ export class GitHub {
       state: p.state,
       isDraft: p.isDraft,
       checks: rollup(p.statusCheckRollup),
+      review: review(p.reviewDecision),
+      mergedAt: p.mergedAt,
     }));
   }
 
@@ -72,5 +89,9 @@ export class GitHub {
     if (req.draft) args.push("--draft");
     const out = await this.runner.run(args, { stdin: req.body });
     return out.trim().split("\n").pop() ?? "";
+  }
+
+  editBase(pr: number, base: string) {
+    return this.runner.run(["pr", "edit", String(pr), "--repo", this.slug, "--base", base]);
   }
 }

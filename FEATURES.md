@@ -25,7 +25,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 1.6 | Auto-refresh when the repo changes (file watcher on `.jj/repo/op_heads`) plus a manual refresh button | P0 ✅ | |
 | 1.7 | Expand a row to see changed files with +/− counts; click a file to open a diff in VS Code's diff editor | P0 ✅ | `jj diff --stat`, `jj file show -r` |
 | 1.8 | Multi-select revisions (shift/cmd-click) for bulk actions | P1 ✅ | |
-| 1.9 | PR badge on bookmarks: PR number, state (open/draft/merged), CI status, review state | P1 ◐ | `gh pr list --json` |
+| 1.9 | PR badge on bookmarks: PR number, state (open/draft/merged), CI status, review state | P1 ✅ | `gh pr list --json` |
 | 1.10 | Compact / comfortable density toggle | P2 | |
 
 ## 2. Editing revisions
@@ -57,7 +57,7 @@ The rebase dialog exposes all of `jj rebase`, with a live before/after preview o
 | 3.5 | **Rebase all my stacks on main** | P1 ✅ | `jj rebase -s 'roots(trunk()..mine())' -o 'trunk()'` |
 | 3.6 | Reorder within a stack (move up/down) | P1 ✅ | `jj rebase -r X -A/-B Y` |
 | 3.7 | Add/remove a parent (create or undo a merge) | P2 | `jj rebase -s X -o A -o B` |
-| 3.8 | Warn before a rebase that would rewrite immutable revisions or create conflicts | P1 | dry run against a temp op, then `jj op restore` |
+| 3.8 | Warn before a rebase that would rewrite immutable revisions or create conflicts | P1 ✅ | dry run against a temp op, then `jj op restore` |
 
 ## 4. Bookmarks (branches)
 
@@ -90,10 +90,10 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 | 6.1 | **Create a PR** from a revision: pushes (creating a bookmark if needed), then opens a form with title/body pre-filled from the description, base branch, draft toggle | P0 ✅ | `jj git push -c/-b`, `gh pr create --head --base` |
 | 6.2 | **Move a PR to a new revision**: pick the PR's bookmark, choose a target revision, force-move and push | P0 ✅ | `jj bookmark set NAME -r Y --allow-backwards && jj git push -b NAME` |
 | 6.3 | Open the PR in the browser; copy its URL | P0 ✅ | `gh pr view --web` |
-| 6.4 | **Stacked PRs**: create a PR per revision in a stack, each based on the one below; when the stack is rebased, update bases and push everything | P1 | `gh pr create/edit --base` |
-| 6.5 | PR status in the graph (state, checks, reviews) | P1 ◐ | `gh pr list --json` |
+| 6.4 | **Stacked PRs**: create a PR per revision in a stack, each based on the one below; when the stack is rebased, update bases and push everything | P1 ✅ | `gh pr create/edit --base` |
+| 6.5 | PR status in the graph (state, checks, reviews) | P1 ✅ | `gh pr list --json` |
 | 6.6 | Change the base, mark ready, or close a PR | P2 | `gh pr edit/ready/close` |
-| 6.7 | After a PR merges: offer to fetch, rebase the rest of the stack on main, and delete the bookmark | P1 | |
+| 6.7 | After a PR merges: offer to fetch, rebase the rest of the stack on main, and delete the bookmark | P1 ✅ | |
 
 ## 7. Safety, history and undo
 
@@ -118,9 +118,9 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 | # | Feature | Pri |
 |---|---|---|
 | 9.1 | Context menus, command palette entries and keybindings for every action | P0 ✅ |
-| 9.2 | SCM provider: working-copy changes in the Source Control view, with gutter quick-diff against `@-` | P1 |
+| 9.2 | SCM provider: working-copy changes in the Source Control view, with gutter quick-diff against `@-` | P1 ✅ |
 | 9.3 | Status bar item: current change ID, description, bookmark; click to describe | P1 ✅ |
-| 9.4 | Multi-root / multiple jj repos in one workspace (repo picker, like the "inboxforge-ui" header) | P1 |
+| 9.4 | Multi-root / multiple jj repos in one workspace (repo picker, like the "inboxforge-ui" header) | P1 ✅ |
 | 9.5 | Settings: `jj` path, default revset, auto-fetch interval, confirmation toggles | P0 ✅ |
 | 9.6 | Light/dark theme support with VS Code theme colors | P0 ✅ |
 

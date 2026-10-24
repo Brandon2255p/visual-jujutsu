@@ -9,6 +9,7 @@ import { Gutter, gutterWidth } from "./Gutter";
 import { Menu, MenuEntry } from "./Menu";
 import { fileMenu, revisionMenu } from "./menus";
 import { OpLog } from "./OpLog";
+import { PullRequests } from "./PullRequests";
 
 type Drag =
   | { kind: "rev"; changeId: string }
@@ -38,7 +39,7 @@ export function GraphView() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const [revsetDraft, setRevsetDraft] = useState("");
-  const [view, setView] = useState<"graph" | "oplog">("graph");
+  const [view, setView] = useState<"graph" | "prs" | "oplog">("graph");
   const [operations, setOperations] = useState<Operation[] | null>(null);
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -296,6 +297,21 @@ export function GraphView() {
   return (
     <div class="panel" onContextMenu={(e) => e.preventDefault()}>
       {busy && <div class="progress" title={busy} />}
+      {state.repos.length > 1 && (
+        <div class="repo-row">
+          <span class="repo-label">Repository</span>
+          <select
+            class="select"
+            title="Switch repository"
+            value={state.root}
+            onChange={(e) => act({ kind: "switchRepo", root: (e.currentTarget as HTMLSelectElement).value })}
+          >
+            {state.repos.map((r) => (
+              <option value={r.root}>{r.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
       <div class="toolbar">
         <button class="btn btn-secondary" onClick={() => act({ kind: "fetch" })} title="jj git fetch">
           <Icon name="fetch" /> Fetch
@@ -351,7 +367,7 @@ export function GraphView() {
           <button class={cls("icon-btn", view === "graph" && "active")} title="Revision graph" onClick={() => setView("graph")}>
             <Icon name="graph" />
           </button>
-          <button class="icon-btn" title="Pull requests" onClick={() => notSupported("Pull requests view")}>
+          <button class={cls("icon-btn", view === "prs" && "active")} title="Pull requests" onClick={() => setView("prs")}>
             <Icon name="pull-request" />
           </button>
           <button
@@ -396,6 +412,7 @@ export function GraphView() {
       </div>
 
       {view === "oplog" && <OpLog operations={operations} />}
+      {view === "prs" && <PullRequests state={state} />}
 
       {view === "graph" && (
         <>
@@ -635,7 +652,7 @@ function RevisionBlock(p: BlockProps) {
         {p.pr && (
           <span
             class={cls("pr", `pr-${p.pr.isDraft && p.pr.state === "OPEN" ? "draft" : p.pr.state.toLowerCase()}`)}
-            title={`${p.pr.title} (${p.pr.isDraft ? "draft" : p.pr.state.toLowerCase()})`}
+            title={`${p.pr.title} (${[p.pr.isDraft ? "draft" : p.pr.state.toLowerCase(), p.pr.review !== "none" && p.pr.review.replace("_", " ")].filter(Boolean).join(", ")})`}
             onClick={(e) => {
               e.stopPropagation();
               act({ kind: "openPullRequest", url: p.pr!.url });

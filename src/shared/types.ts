@@ -85,6 +85,8 @@ export interface PullRequest {
   state: "OPEN" | "CLOSED" | "MERGED";
   isDraft: boolean;
   checks: "passing" | "failing" | "pending" | "none";
+  review: "approved" | "changes_requested" | "review_required" | "none";
+  mergedAt: string | null;
 }
 
 export interface Operation {
@@ -101,6 +103,11 @@ export interface RemoteBookmarkRef {
   tracked: boolean;
 }
 
+export interface RepoInfo {
+  root: string;
+  name: string;
+}
+
 export interface RevsetPreset {
   name: string;
   revset: string;
@@ -108,12 +115,19 @@ export interface RevsetPreset {
 
 export interface GraphState {
   repoName: string;
+  root: string;
+  /** All jj repos in the workspace; the graph view fills this in. */
+  repos: RepoInfo[];
   jjVersion: string;
   revset: string;
   presets: RevsetPreset[];
   revisions: Revision[];
   layout: GraphLayout;
   pullRequests: PullRequest[];
+  /** Every local bookmark, including ones outside the revset. */
+  localBookmarks: string[];
+  /** Whether PR features can work (GitHub remote found). */
+  github: boolean;
   lastOperation: Operation | null;
   error: string | null;
 }

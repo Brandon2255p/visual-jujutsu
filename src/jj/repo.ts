@@ -340,6 +340,35 @@ export class JjRepo {
     return this.run(args);
   }
 
+  /**
+   * Shows what a rebase would do without keeping it: runs it (leaving the
+   * working copy alone), reads the graph, then restores the operation it
+   * started from and abandons the rebase operation. jj can't abandon the
+   * current operation, so a "restore" operation remains; undoing it is a
+   * no-op. Nothing else runs in between, so a refresh never sees the rebase.
+   */
+  previewRebase(source: RebaseSource, changeId: string, target: RebaseTarget, destination: string, skipEmptied = false) {
+    const revset = `trunk() | (trunk()..(${changeId}:: | ${destination})) | ${destination}`;
+    return this.runner.exclusive(async (run) => {
+      const q = (args: string[], ignoreWc = true) => run(ignoreWc ? ["--ignore-working-copy", ...args] : args, { quiet: true });
+      const read = async () =>
+        (await q(["log", "--no-graph", "-T", LOG_TEMPLATE, "-n", "60", "-r", revset])).split("\n").filter((l) => l.trim()).map(parseLogLine);
+      // Snapshot the working copy first, so the operation we return to includes it.
+      await q(["log", "--no-graph", "-r", "@", "-T", "''"], false);
+      const opId = (await q(["op", "log", "-n", "1", "--no-graph", "-T", "self.id()"])).trim();
+      const before = await read();
+      const args = ["rebase", `-${source}`, changeId, this.targetFlag(target), destination];
+      if (skipEmptied) args.push("--skip-emptied");
+      await q(args);
+      try {
+        return { before, after: await read() };
+      } finally {
+        await q(["op", "restore", opId]);
+        await q(["op", "abandon", `${opId}..@-`]);
+      }
+    });
+  }
+
   /** Rebases several revisions (or several roots with their descendants) at once. */
   rebaseMany(source: "r" | "s", changeIds: string[], target: RebaseTarget, destination: string) {
     return this.run(["rebase", `-${source}`, this.many(changeIds), this.targetFlag(target), destination]);
@@ -359,6 +388,27 @@ export class JjRepo {
     const args = ["bookmark", "set", name, "-r", changeId];
     if (allowBackwards) args.push("--allow-backwards");
     return this.run(args);
+  }
+
+  /** Change IDs of the revisions in a revset. */
+  async changeIds(revset: string, limit = 500): Promise<string[]> {
+    const out = await this.run(["log", "--no-graph", "-r", revset, "-n", String(limit), "-T", 'change_id ++ "\\n"'], true);
+    return out.split("\n").filter((l) => l.trim());
+  }
+
+  /**
+   * After a bookmark's PR is merged: rebases the revisions built on top of it
+   * onto trunk, abandons its revisions that didn't land in trunk as-is (e.g. a
+   * squash merge), and deletes the bookmark. Fetch first.
+   */
+  async cleanUpMergedBookmark(name: string): Promise<{ rebased: number; abandoned: number }> {
+    const b = `bookmarks(exact:${JSON.stringify(name)})`;
+    const above = await this.changeIds(`children(${b}) & mutable()`);
+    const merged = await this.changeIds(`(::${b} ~ ::trunk()) & mutable()`);
+    if (above.length) await this.rebaseMany("s", above, "o", "trunk()");
+    if (merged.length) await this.abandon(merged);
+    if ((await this.bookmarkNames()).includes(name)) await this.deleteBookmarks([name]);
+    return { rebased: above.length, abandoned: merged.length };
   }
 
   renameBookmark(oldName: string, newName: string) {

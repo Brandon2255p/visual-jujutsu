@@ -1,34 +1,20 @@
 import * as vscode from "vscode";
-import { basename } from "node:path";
-import { JjRepo } from "./jj/repo";
-import { GitHub, githubSlug } from "./github/gh";
-import { Controller } from "./controller";
+import { RepoManager } from "./repoManager";
 import { GraphViewProvider } from "./views/graphView";
+import { JjSourceControl } from "./views/scm";
 import { openCreatePullRequest, openRebaseDialog } from "./views/panels";
 import type { Action } from "./shared/protocol";
-import type { Revision } from "./shared/types";
+import type { GraphState, Revision } from "./shared/types";
 import { shortChangeId } from "./shared/types";
-
-function config() {
-  return vscode.workspace.getConfiguration("visualJujutsu");
-}
-
-async function findRepoRoot(jjPath: string): Promise<string | null> {
-  for (const folder of vscode.workspace.workspaceFolders ?? []) {
-    const root = await JjRepo.findRoot(jjPath, folder.uri.fsPath);
-    if (root) return root;
-  }
-  return null;
-}
 
 export async function activate(context: vscode.ExtensionContext) {
   const output = vscode.window.createOutputChannel("Visual Jujutsu");
   context.subscriptions.push(output);
   const log = { append: (line: string) => output.appendLine(line) };
-  const jjPath = () => config().get<string>("jjPath", "jj");
 
-  const root = await findRepoRoot(jjPath());
-  if (!root) {
+  const repos = new RepoManager(context, output, log);
+  context.subscriptions.push(repos);
+  if ((await repos.discover()) === 0) {
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider(GraphViewProvider.viewId, {
         resolveWebviewView(view) {
@@ -41,19 +27,16 @@ export async function activate(context: vscode.ExtensionContext) {
     return;
   }
 
-  const repo = new JjRepo(jjPath, root, log);
-  const github = await createGitHub(repo, root, log);
-  const controller = new Controller(repo, github, output, basename(root));
-  const provider = new GraphViewProvider(context.extensionUri, controller);
+  const provider = new GraphViewProvider(context.extensionUri, repos);
   context.subscriptions.push(
-    controller,
     provider,
     vscode.window.registerWebviewViewProvider(GraphViewProvider.viewId, provider),
     vscode.workspace.registerTextDocumentContentProvider("jj-rev", {
       async provideTextDocumentContent(uri) {
-        const rev = new URLSearchParams(uri.query).get("rev") ?? "@";
+        const query = new URLSearchParams(uri.query);
+        const repo = repos.get(query.get("root"))?.repo;
         try {
-          return await repo.fileContent(rev, uri.path.replace(/^\//, ""));
+          return (await repo?.fileContent(query.get("rev") ?? "@", uri.path.replace(/^\//, ""))) ?? "";
         } catch {
           return ""; // The file doesn't exist on that side of the diff.
         }
@@ -61,36 +44,32 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
   );
 
-  registerCommands(context, controller);
+  registerCommands(context, repos);
   context.subscriptions.push(
-    vscode.commands.registerCommand("visualJujutsu.internal.debugState", () => ({ webviewReady: provider.webviewReady })),
+    vscode.commands.registerCommand("visualJujutsu.internal.debugState", () => ({
+      webviewReady: provider.webviewReady,
+      repos: repos.list().map((r) => ({ ...r, scm: repos.get(r.root)?.scm.paths ?? [] })),
+      active: repos.active?.root,
+    })),
+    statusBar(repos),
   );
-  watchRepo(context, controller, root);
-  context.subscriptions.push(statusBar(controller));
-  void controller.refresh();
 }
 
-async function createGitHub(repo: JjRepo, root: string, log: { append(line: string): void }) {
-  try {
-    const remotes = await repo.remotes();
-    const remote = remotes.find((r) => r.name === "origin" && githubSlug(r.url)) ?? remotes.find((r) => githubSlug(r.url));
-    const slug = remote && githubSlug(remote.url);
-    return slug ? new GitHub(() => config().get<string>("ghPath", "gh"), root, log, slug) : null;
-  } catch {
-    return null;
-  }
-}
-
-function registerCommands(context: vscode.ExtensionContext, controller: Controller) {
+function registerCommands(context: vscode.ExtensionContext, repos: RepoManager) {
   const reg = (id: string, fn: (...args: any[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(id, fn));
-  const run = (action: Action) => controller.run(action);
+  const active = () => {
+    const entry = repos.active;
+    if (!entry) throw new Error("No jj repository is open.");
+    return entry.controller;
+  };
+  const run = (action: Action) => active().run(action);
 
   /** Commands take a change id from the webview, or ask for one from the palette. */
   const withRevision =
     (title: string, fn: (rev: string) => Action | void, filter?: (r: Revision) => boolean) =>
     async (changeId?: string) => {
-      const id = typeof changeId === "string" ? changeId : (await controller.pickRevision(title, filter))?.changeId;
+      const id = typeof changeId === "string" ? changeId : (await active().pickRevision(title, filter))?.changeId;
       if (!id) return;
       const action = fn(id);
       if (action) await run(action);
@@ -118,50 +97,50 @@ function registerCommands(context: vscode.ExtensionContext, controller: Controll
   reg("visualJujutsu.split", withRevision("Split which revision?", (changeId) => ({ kind: "split", changeId }), mutable));
   reg("visualJujutsu.rebaseAllOnTrunk", () => run({ kind: "rebaseAllOnTrunk" }));
   reg("visualJujutsu.trackBookmarks", () => run({ kind: "trackBookmarks" }));
-  reg("visualJujutsu.internal.openRebaseDialog", (changeId: string) => openRebaseDialog(context.extensionUri, controller, changeId));
+  reg("visualJujutsu.switchRepository", async () => {
+    const pick = await vscode.window.showQuickPick(
+      repos.list().map((r) => ({ label: r.name, description: r.root, root: r.root, picked: r.root === repos.active?.root })),
+      { title: "Show which jj repository in the graph?" },
+    );
+    if (pick) repos.setActive(pick.root);
+  });
+  reg("visualJujutsu.internal.scmDescribe", (scm: JjSourceControl) => scm.describe());
+  reg("visualJujutsu.scmNewRevision", (sc?: vscode.SourceControl) => {
+    const controller = repos.get(sc?.rootUri?.fsPath)?.controller ?? active();
+    return controller.run({ kind: "new", changeIds: ["@"], mode: "onto" });
+  });
+  reg("visualJujutsu.internal.openRebaseDialog", (changeId: string) => openRebaseDialog(context.extensionUri, active(), changeId));
   reg("visualJujutsu.internal.openCreatePullRequest", (changeId: string) =>
-    openCreatePullRequest(context.extensionUri, controller, changeId),
+    openCreatePullRequest(context.extensionUri, active(), changeId),
   );
 }
 
-/** Refreshes when jj records a new operation or a file is saved. */
-function watchRepo(context: vscode.ExtensionContext, controller: Controller, root: string) {
-  let timer: NodeJS.Timeout | undefined;
-  const schedule = (ms: number) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => void controller.refresh(), ms);
-  };
-  const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, ".jj/repo/op_heads/heads/*"));
-  context.subscriptions.push(
-    watcher,
-    watcher.onDidCreate(() => schedule(150)),
-    vscode.workspace.onDidSaveTextDocument((doc) => {
-      if (doc.uri.fsPath.startsWith(root)) schedule(800);
-    }),
-    vscode.window.onDidChangeWindowState((s) => {
-      if (s.focused) schedule(300);
-    }),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("visualJujutsu")) schedule(0);
-    }),
-    { dispose: () => clearTimeout(timer) },
-  );
-}
-
-function statusBar(controller: Controller): vscode.Disposable {
+/** Shows the active repo's working copy. */
+function statusBar(repos: RepoManager): vscode.Disposable {
   const item = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   item.command = "visualJujutsu.describe";
-  const sub = controller.onDidChangeState((state) => {
+  let sub: vscode.Disposable | undefined;
+  const bind = () => {
+    sub?.dispose();
+    const controller = repos.active?.controller;
+    if (!controller) return item.hide();
+    if (controller.currentState) update(controller.currentState);
+    sub = controller.onDidChangeState(update);
+  };
+  const update = (state: GraphState) => {
     const wc = state.revisions.find((r) => r.isWorkingCopy);
     if (!wc) return item.hide();
     const desc = wc.description.split("\n")[0].trim() || "(no description)";
     const conflicts = state.revisions.filter((r) => r.conflict).length;
-    item.text = `$(git-commit) ${shortChangeId(wc)} · ${desc}${conflicts ? `  $(warning) ${conflicts}` : ""}`;
+    const repo = repos.list().length > 1 ? `${state.repoName}: ` : "";
+    item.text = `$(git-commit) ${repo}${shortChangeId(wc)} · ${desc}${conflicts ? `  $(warning) ${conflicts}` : ""}`;
     item.tooltip = "Working copy (@). Click to describe.";
     item.command = { command: "visualJujutsu.describe", title: "Describe", arguments: [wc.changeId] };
     item.show();
-  });
-  return { dispose: () => (sub.dispose(), item.dispose()) };
+  };
+  bind();
+  const activeSub = repos.onDidChangeActive(bind);
+  return { dispose: () => (sub?.dispose(), activeSub.dispose(), item.dispose()) };
 }
 
 export function deactivate() {}

@@ -47,6 +47,16 @@ export class Runner {
     return next;
   }
 
+  /**
+   * Runs several commands with nothing else interleaved: other run() calls
+   * wait until fn settles. Use the run function passed to fn, not run().
+   */
+  exclusive<T>(fn: (run: (args: string[], opts?: RunOptions) => Promise<string>) => Promise<T>): Promise<T> {
+    const next = this.queue.then(() => fn((args, opts = {}) => this.exec(args, opts)));
+    this.queue = next.catch(() => undefined);
+    return next;
+  }
+
   private exec(args: string[], opts: RunOptions): Promise<string> {
     const exe = this.executable();
     const display = [exe, ...args].map(quote).join(" ");

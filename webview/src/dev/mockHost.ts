@@ -66,8 +66,11 @@ let revisions: Revision[] = [
 ];
 
 const pullRequests: GraphState["pullRequests"] = [
-  { number: 12, title: "feat(graph): render revision lanes", url: "https://github.com/x/y/pull/12", headRefName: "graph-view", baseRefName: "webview", state: "OPEN", isDraft: false, checks: "passing" },
-  { number: 11, title: "feat(webview): scaffold", url: "https://github.com/x/y/pull/11", headRefName: "webview", baseRefName: "main", state: "OPEN", isDraft: true, checks: "pending" },
+  // #12's base is main, but the revision below it has PR #11, so the PR view suggests Sync stack.
+  { number: 12, title: "feat(graph): render revision lanes", url: "https://github.com/x/y/pull/12", headRefName: "graph-view", baseRefName: "main", state: "OPEN", isDraft: false, checks: "passing", review: "approved", mergedAt: null },
+  { number: 11, title: "feat(webview): scaffold webview panel", url: "https://github.com/x/y/pull/11", headRefName: "webview", baseRefName: "main", state: "OPEN", isDraft: true, checks: "pending", review: "review_required", mergedAt: null },
+  { number: 10, title: "chore: initial extension scaffold", url: "https://github.com/x/y/pull/10", headRefName: "scaffold", baseRefName: "main", state: "MERGED", isDraft: false, checks: "passing", review: "approved", mergedAt: ago(20) },
+  { number: 9, title: "docs: add README and screenshots", url: "https://github.com/x/y/pull/9", headRefName: "docs-readme", baseRefName: "main", state: "OPEN", isDraft: false, checks: "failing", review: "changes_requested", mergedAt: null },
 ];
 
 let revset = "";
@@ -86,6 +89,10 @@ operations[0].current = true;
 function state(): GraphState {
   return {
     repoName: "visual-jujutsu",
+    root: "/work/visual-jujutsu",
+    repos: new URLSearchParams(location.search).has("multi")
+      ? [{ root: "/work/visual-jujutsu", name: "visual-jujutsu" }, { root: "/work/inboxforge-ui", name: "inboxforge-ui" }]
+      : [{ root: "/work/visual-jujutsu", name: "visual-jujutsu" }],
     jjVersion: "0.46.0",
     revset,
     presets: [
@@ -96,6 +103,8 @@ function state(): GraphState {
     revisions,
     layout: layoutGraph(revisions),
     pullRequests,
+    localBookmarks: [...new Set([...revisions.flatMap((r) => r.localBookmarks.map((b) => b.name)), "scaffold"])],
+    github: true,
     lastOperation: operations[0],
     error: null,
   };
@@ -139,6 +148,21 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       revset = message.revset;
       emit({ type: "state", state: state() });
       break;
+    case "rebasePreview": {
+      // Apply the rebase to a copy of the sample graph, then put it back.
+      const a = message.action;
+      const saved = revisions;
+      const before = revisions.filter((r) => !r.root);
+      rebase(a.source, a.changeId, a.destination ?? revisions.find((r) => r.inTrunk)!.changeId);
+      const was = new Map(saved.map((r) => [r.changeId, r.parents.join()]));
+      const moved = revisions.filter((r) => was.get(r.changeId) !== r.parents.join()).map((r) => r.changeId);
+      // Pretend rebasing onto the working copy conflicts, to show that state.
+      const conflicts = revisions.some((r) => r.isWorkingCopy && r.changeId === a.destination) ? moved.slice(0, 1) : [];
+      const after = revisions.filter((r) => !r.root).map((r) => (conflicts.includes(r.changeId) ? { ...r, conflict: true } : r));
+      revisions = saved;
+      setTimeout(() => emit({ type: "rebasePreview", preview: { before, after, moved, conflicts } }), 400);
+      break;
+    }
     case "loadOperations":
       emit({ type: "operations", operations });
       break;

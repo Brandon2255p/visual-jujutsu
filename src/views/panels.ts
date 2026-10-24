@@ -33,14 +33,22 @@ export function openRebaseDialog(extensionUri: vscode.Uri, controller: Controlle
     if (m.type === "rebaseSubmit") {
       panel.dispose();
       await controller.run(m.action);
+    } else if (m.type === "rebasePreview") {
+      let reply: HostMessage;
+      try {
+        reply = { type: "rebasePreview", preview: await controller.previewRebase(m.action) };
+      } catch (e) {
+        reply = { type: "rebasePreview", preview: null, error: e instanceof Error ? e.message : String(e) };
+      }
+      void panel.webview.postMessage(reply);
     } else if (m.type === "action") {
       await controller.run(m.action);
     }
   });
 }
 
-export function openCreatePullRequest(extensionUri: vscode.Uri, controller: Controller, changeId: string) {
-  const data = controller.createPrDialogData(changeId);
+export async function openCreatePullRequest(extensionUri: vscode.Uri, controller: Controller, changeId: string) {
+  const data = await controller.createPrDialogData(changeId);
   if (!data) return void vscode.window.showErrorMessage("That revision is not in the graph. Refresh and try again.");
   openPanel(extensionUri, "createPr", "Create pull request", { type: "createPrDialog", data }, async (m, panel) => {
     if (m.type === "createPrSubmit") {

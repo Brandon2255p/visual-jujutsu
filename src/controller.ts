@@ -3,9 +3,11 @@ import { CommandError } from "./jj/cli";
 import { JjRepo, MIN_JJ_VERSION } from "./jj/repo";
 import { GitHub } from "./github/gh";
 import { layoutGraph } from "./shared/graph";
-import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData } from "./shared/protocol";
+import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData, RebasePreview } from "./shared/protocol";
 import type { ChangedFile, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
 import { shortChangeId } from "./shared/types";
+import { expectedBase, stackFor, syncPlan, trunkBookmark } from "./shared/stacks";
+import { revUri } from "./views/scm";
 
 const ROADMAP_URL = "https://github.com/Brandon2255p/visual-jujutsu/blob/main/FEATURES.md";
 const PR_REFRESH_MS = 60_000;
@@ -40,6 +42,7 @@ export class Controller implements vscode.Disposable {
   private revset: string;
   private revisions: Revision[] = [];
   private pullRequests: PullRequest[] = [];
+  private localBookmarks: string[] = [];
   private prsFetchedAt = 0;
   private jjVersion = "";
   private state: GraphState | null = null;
@@ -100,11 +103,13 @@ export class Controller implements vscode.Disposable {
             "Update jj: https://jj-vcs.github.io/jj/latest/install-and-setup/",
         );
       }
-      const [revisions, lastOperation] = await Promise.all([
+      const [revisions, lastOperation, bookmarks] = await Promise.all([
         this.repo.log(this.revset, config().get<number>("logLimit", 200)),
         this.repo.lastOperation(),
+        this.repo.bookmarkNames(),
       ]);
       this.revisions = revisions.filter((r) => !r.root);
+      this.localBookmarks = bookmarks;
       this.state = this.buildState(lastOperation, null);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -117,12 +122,16 @@ export class Controller implements vscode.Disposable {
   private buildState(lastOperation: GraphState["lastOperation"], error: string | null): GraphState {
     return {
       repoName: this.repoName,
+      root: this.repo.root,
+      repos: [],
       jjVersion: this.jjVersion,
       revset: this.revset,
       presets: this.presets(),
       revisions: this.revisions,
       layout: layoutGraph(this.revisions),
       pullRequests: this.pullRequests,
+      localBookmarks: this.localBookmarks,
+      github: !!this.github,
       lastOperation,
       error,
     };
@@ -408,6 +417,18 @@ export class Controller implements vscode.Disposable {
         await repo.restoreOperation(action.id);
         return true;
       }
+      case "syncStack": {
+        const changeId = action.changeId ?? (action.bookmark ? (await repo.changeIds(this.bookmarkRevset(action.bookmark), 1))[0] : undefined);
+        if (!changeId) throw new Error(`Bookmark “${action.bookmark}” is not in this repo.`);
+        return this.syncStack(changeId);
+      }
+      case "createStackPrs":
+        return this.createStackPrs(action.changeId);
+      case "cleanUpMergedPr":
+        return this.cleanUpMergedPr(action.number);
+      case "switchRepo":
+        // Handled by the graph view, which owns the active repo.
+        return false;
       case "notSupported":
         void this.notSupported(action.feature);
         return false;
@@ -619,8 +640,7 @@ export class Controller implements vscode.Disposable {
   }
 
   private async openDiff(changeId: string, path: string) {
-    const uri = (revset: string) =>
-      vscode.Uri.from({ scheme: "jj-rev", path: "/" + path, query: new URLSearchParams({ rev: revset }).toString() });
+    const uri = (revset: string) => revUri(this.repo.root, revset, path);
     const name = path.split("/").pop();
     await vscode.commands.executeCommand("vscode.diff", uri(`${changeId}-`), uri(changeId), `${name} (${this.label(changeId)})`);
   }
@@ -653,39 +673,176 @@ export class Controller implements vscode.Disposable {
     };
   }
 
-  createPrDialogData(changeId: string): CreatePrDialogData | null {
-    const revision = this.findRevision(changeId);
+  async previewRebase(action: Extract<Action, { kind: "rebase" }>): Promise<RebasePreview> {
+    const destination = action.destination ?? "trunk()";
+    const { before, after } = await this.repo.previewRebase(action.source, action.changeId, action.target, destination, action.skipEmptied);
+    const was = new Map(before.map((r) => [r.changeId, r]));
+    return {
+      before,
+      after,
+      moved: after.filter((r) => was.get(r.changeId)?.commitId !== r.commitId).map((r) => r.changeId),
+      conflicts: after.filter((r) => r.conflict && !was.get(r.changeId)?.conflict).map((r) => r.changeId),
+    };
+  }
+
+  async createPrDialogData(changeId: string): Promise<CreatePrDialogData | null> {
+    const revisions = await this.stackRevisions(changeId);
+    const revision = revisions.find((r) => r.changeId === changeId);
     if (!revision) return null;
-    const byCommit = new Map(this.revisions.map((r) => [r.commitId, r]));
-    const prFor = (name: string) => this.pullRequests.find((p) => p.headRefName === name && p.state === "OPEN") ?? null;
-
-    // Walk first parents down to trunk to find the stack below this revision.
-    const stack: CreatePrDialogData["stack"] = [];
-    let cur: Revision | undefined = revision;
-    while (cur && !cur.immutable && !cur.inTrunk && stack.length < 20) {
-      const bookmark = cur.localBookmarks[0]?.name ?? null;
-      stack.push({ revision: cur, bookmark, pr: bookmark ? prFor(bookmark) : null });
-      cur = byCommit.get(cur.parents[0]);
-    }
-    if (cur) stack.push({ revision: cur, bookmark: cur.localBookmarks[0]?.name ?? null, pr: null });
-
-    const trunkName = this.revisions.find((r) => r.inTrunk && r.localBookmarks.length)?.localBookmarks[0].name ?? "main";
-    const below = stack.slice(1).find((s) => s.bookmark && s.pr);
-    const prefix = config().get<string>("pullRequestBookmarkPrefix", "push-");
+    const stack = stackFor(revisions, changeId, this.pullRequests);
+    const trunk = trunkBookmark(revisions);
+    const { base, below } = expectedBase(stack, 0, trunk);
     const existing = revision.localBookmarks.map((b) => b.name);
-    const newName = `${prefix}${revision.changeId.slice(0, 12)}`;
-    const baseOptions = [...new Set([trunkName, ...stack.slice(1).flatMap((s) => (s.bookmark ? [s.bookmark] : []))])];
+    const newName = this.newPrBookmark(changeId);
     return {
       revision,
       headOptions: [...existing, newName],
       suggestedHead: existing[0] ?? newName,
-      baseOptions,
-      suggestedBase: below?.bookmark ?? trunkName,
+      baseOptions: [...new Set([trunk, ...stack.slice(1).flatMap((s) => (s.bookmark && !s.revision.inTrunk ? [s.bookmark] : []))])],
+      suggestedBase: base,
       baseReason: below
-        ? `The revision below has PR #${below.pr!.number}, so this PR stacks on it. Pick ${trunkName} to target trunk.`
-        : `Targets ${trunkName}.`,
+        ? `The revision below has PR #${below.pr!.number}, so this PR stacks on it. Pick ${trunk} to target trunk.`
+        : `Targets ${trunk}.`,
       stack,
     };
+  }
+
+  // ---- Stacked pull requests ---------------------------------------------
+
+  private bookmarkRevset(name: string) {
+    return `bookmarks(exact:${JSON.stringify(name)})`;
+  }
+
+  private newPrBookmark(changeId: string) {
+    return `${config().get<string>("pullRequestBookmarkPrefix", "push-")}${changeId.slice(0, 12)}`;
+  }
+
+  private requireGitHub(): GitHub {
+    if (!this.github) throw new Error("Pull requests need a GitHub remote and the gh CLI.");
+    return this.github;
+  }
+
+  /** The revision's ancestors down to trunk, independent of the graph's revset. */
+  private async stackRevisions(changeId: string): Promise<Revision[]> {
+    return this.repo.log(`(trunk()..${changeId}) | trunk()`, 100);
+  }
+
+  private async freshPullRequests() {
+    this.prsFetchedAt = 0;
+    await this.loadPullRequests();
+    return this.pullRequests;
+  }
+
+  /** Pushes every bookmark in the stack and points each PR's base at the PR below it. */
+  private async syncStack(changeId: string) {
+    const github = this.requireGitHub();
+    this.busy("Checking the stack…");
+    const prs = await this.freshPullRequests();
+    const revisions = await this.stackRevisions(changeId);
+    const plan = syncPlan(stackFor(revisions, changeId, prs), trunkBookmark(revisions));
+    const report = plan.push.length ? await this.repo.push({ bookmarks: plan.push, dryRun: true }) : "";
+    this.busyEmitter.fire({ busy: false });
+    const pushLines = report
+      .split("\n")
+      .filter((l) => l.trim() && !/dry-run requested|nothing changed/i.test(l));
+    if (!pushLines.length && !plan.retarget.length) {
+      void vscode.window.showInformationMessage("This stack is already in sync with GitHub.");
+      return false;
+    }
+    const detail = [
+      ...(pushLines.length ? [...pushLines, ""] : []),
+      ...plan.retarget.map((r) => `PR #${r.pr.number}: change base from ${r.from} to ${r.to}`),
+    ].join("\n");
+    const choice = await vscode.window.showInformationMessage("Sync stack with GitHub?", { modal: true, detail }, "Sync");
+    if (choice !== "Sync") return false;
+    if (pushLines.length) {
+      this.busy("Pushing the stack…");
+      await this.repo.push({ bookmarks: plan.push });
+    }
+    for (const r of plan.retarget) {
+      this.busy(`Updating PR #${r.pr.number}…`);
+      await github.editBase(r.pr.number, r.to);
+    }
+    this.prsFetchedAt = 0;
+    return true;
+  }
+
+  /** Opens a PR for every revision in the stack that doesn't have one, each based on the one below. */
+  private async createStackPrs(changeId: string) {
+    const github = this.requireGitHub();
+    this.busy("Checking the stack…");
+    const prs = await this.freshPullRequests();
+    const revisions = await this.stackRevisions(changeId);
+    const trunk = trunkBookmark(revisions);
+    const entries = stackFor(revisions, changeId, prs)
+      .filter((s) => !s.revision.inTrunk && !s.revision.immutable)
+      .reverse();
+    this.busyEmitter.fire({ busy: false });
+    const missing = entries.filter((e) => !e.pr);
+    if (!missing.length) {
+      void vscode.window.showInformationMessage("Every revision in this stack already has a pull request.");
+      return false;
+    }
+    const title = (r: Revision) => firstLine(r.description) || shortChangeId(r);
+    const detail = missing.map((e) => `${shortChangeId(e.revision)}  ${title(e.revision)}  (${e.bookmark ?? this.newPrBookmark(e.revision.changeId)})`).join("\n");
+    const n = missing.length;
+    const choice = await vscode.window.showInformationMessage(
+      `Create ${n} pull request${n === 1 ? "" : "s"} for this stack?`,
+      { modal: true, detail: `${detail}\n\nEach PR is based on the one below it; the bottom one targets ${trunk}.` },
+      "Create",
+      "Create as drafts",
+    );
+    if (!choice) return false;
+    for (const e of missing) {
+      if (!e.bookmark) {
+        e.bookmark = this.newPrBookmark(e.revision.changeId);
+        await this.repo.createBookmark(e.bookmark, e.revision.changeId);
+      }
+    }
+    this.busy("Pushing the stack…");
+    await this.repo.push({ bookmarks: entries.map((e) => e.bookmark!) });
+    let base = trunk;
+    const urls: string[] = [];
+    for (const e of entries) {
+      if (!e.pr) {
+        this.busy(`Creating PR for ${e.bookmark}…`);
+        const [first, ...rest] = e.revision.description.trim().split("\n");
+        urls.push(
+          await github.createPullRequest({
+            head: e.bookmark!,
+            base,
+            title: first?.trim() || title(e.revision),
+            body: rest.join("\n").trim(),
+            draft: choice === "Create as drafts",
+          }),
+        );
+      }
+      base = e.bookmark!;
+    }
+    this.prsFetchedAt = 0;
+    void vscode.window.showInformationMessage(`Created ${urls.length} pull request${urls.length === 1 ? "" : "s"}.`, "Open on GitHub").then((c) => {
+      if (c) urls.forEach((u) => void vscode.env.openExternal(vscode.Uri.parse(u)));
+    });
+    return true;
+  }
+
+  private async cleanUpMergedPr(number: number) {
+    const pr = this.pullRequests.find((p) => p.number === number);
+    if (!pr) throw new Error(`PR #${number} not found.`);
+    const name = pr.headRefName;
+    const ok = await this.confirm(
+      `Clean up after PR #${number}?`,
+      `1. Fetch from origin.\n2. Rebase revisions built on top of “${name}” onto trunk.\n3. Abandon “${name}”'s revisions that aren't in trunk (they were merged).\n4. Delete bookmark “${name}”.\n\nYou can undo this from the operation log.`,
+      "Clean up",
+    );
+    if (!ok) return false;
+    this.busy("Fetching…");
+    await this.repo.fetch();
+    this.busy("Cleaning up…");
+    const { rebased, abandoned } = await this.repo.cleanUpMergedBookmark(name);
+    vscode.window.setStatusBarMessage(`Cleaned up #${number}: rebased ${rebased}, abandoned ${abandoned}.`, 4000);
+    this.prsFetchedAt = 0;
+    return true;
   }
 
   async createPullRequest(req: CreatePrRequest): Promise<boolean> {

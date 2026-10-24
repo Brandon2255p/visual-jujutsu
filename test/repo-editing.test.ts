@@ -154,3 +154,25 @@ describe("operation log", () => {
     expect(await repo.bookmarkNames()).not.toContain("temp");
   });
 });
+
+describe("after a PR merges", () => {
+  it("rebases work on top onto trunk, abandons the merged revisions and deletes the bookmark", async () => {
+    // feature (bookmark pr-1) ← follow-up, then pr-1 is "squash merged" into trunk.
+    jj("new", "main", "-m", "pr one");
+    writeFileSync(join(dir, "pr1.txt"), "1\n");
+    jj("bookmark", "create", "pr-1", "-r", "@");
+    jj("new", "-m", "follow-up");
+    writeFileSync(join(dir, "follow.txt"), "f\n");
+    jj("new", "main", "-m", "squash merge of pr one");
+    writeFileSync(join(dir, "pr1.txt"), "1\n");
+    jj("bookmark", "set", "main", "-r", "@");
+    await repo.push({ bookmarks: ["main"] });
+    jj("new");
+
+    const result = await repo.cleanUpMergedBookmark("pr-1");
+    expect(result).toEqual({ rebased: 1, abandoned: 1 });
+    expect(one(`${idOf("follow-up")}-`)).toBe(idOf("squash merge of pr one"));
+    expect(idOf("pr one")).toBe(""); // abandoned
+    expect(await repo.bookmarkNames()).not.toContain("pr-1");
+  });
+});

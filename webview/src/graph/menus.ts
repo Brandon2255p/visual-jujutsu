@@ -85,6 +85,8 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
     ...pushEntries,
     { label: "Create pull request…", disabled: ro, run: () => act({ kind: "openCreatePullRequest", changeId: id }) },
     { label: "Move pull request here…", disabled: ro, run: () => act({ kind: "movePullRequestHere", changeId: id }) },
+    { label: "Create PRs for stack…", disabled: ro, run: () => act({ kind: "createStackPrs", changeId: id }) },
+    { label: "Sync stack with GitHub", disabled: ro, run: () => act({ kind: "syncStack", changeId: id }) },
     ...(pr ? [{ label: `Open PR #${pr.number} on GitHub`, run: () => act({ kind: "openPullRequest", url: pr.url }) }] : []),
     "-",
     { label: "Copy change ID", kb: "⌘C", run: () => act({ kind: "copy", text: rev.changeId, label: `change ID ${shortId(rev)}` }) },

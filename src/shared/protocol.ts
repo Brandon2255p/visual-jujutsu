@@ -50,6 +50,10 @@ export type Action =
   | { kind: "resolveConflicts"; changeId: string; path?: string }
   | { kind: "openWorkingCopyFile"; path: string }
   | { kind: "restoreOperation"; id: string; description: string }
+  | { kind: "syncStack"; changeId?: string; bookmark?: string }
+  | { kind: "createStackPrs"; changeId: string }
+  | { kind: "cleanUpMergedPr"; number: number }
+  | { kind: "switchRepo"; root: string }
   | { kind: "notSupported"; feature: string };
 
 export type WebviewMessage =
@@ -60,6 +64,7 @@ export type WebviewMessage =
   | { type: "action"; action: Action }
   // Dialog panels
   | { type: "rebaseSubmit"; action: Extract<Action, { kind: "rebase" }> }
+  | { type: "rebasePreview"; action: Extract<Action, { kind: "rebase" }> }
   | { type: "createPrSubmit"; request: CreatePrRequest }
   | { type: "closePanel" };
 
@@ -79,6 +84,16 @@ export interface RebaseDialogData {
   defaultDestination: string | null;
 }
 
+/** What a rebase would do: the graph before and after, by change ID. */
+export interface RebasePreview {
+  before: Revision[];
+  after: Revision[];
+  /** Revisions the rebase rewrites. */
+  moved: string[];
+  /** Revisions that would become conflicted. */
+  conflicts: string[];
+}
+
 export interface CreatePrDialogData {
   revision: Revision;
   headOptions: string[];
@@ -96,4 +111,5 @@ export type HostMessage =
   | { type: "busy"; busy: boolean; label?: string }
   | { type: "init"; mode: "graph" }
   | { type: "rebaseDialog"; data: RebaseDialogData }
+  | { type: "rebasePreview"; preview: RebasePreview | null; error?: string }
   | { type: "createPrDialog"; data: CreatePrDialogData };

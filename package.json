@@ -39,7 +39,8 @@
     "stacked diffs"
   ],
   "activationEvents": [
-    "workspaceContains:.jj"
+    "workspaceContains:.jj",
+    "workspaceContains:*/.jj"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -167,6 +168,17 @@
         "command": "visualJujutsu.trackBookmarks",
         "title": "Track / Untrack Remote Bookmarks…",
         "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.switchRepository",
+        "title": "Switch Repository…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.scmNewRevision",
+        "title": "New Revision",
+        "category": "Visual Jujutsu",
+        "icon": "$(add)"
       }
     ],
     "menus": {
@@ -175,6 +187,24 @@
           "command": "visualJujutsu.refresh",
           "when": "view == visualJujutsu.graph",
           "group": "navigation"
+        }
+      ],
+      "scm/title": [
+        {
+          "command": "visualJujutsu.scmNewRevision",
+          "when": "scmProvider == jj",
+          "group": "navigation"
+        },
+        {
+          "command": "visualJujutsu.refresh",
+          "when": "scmProvider == jj",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "visualJujutsu.scmNewRevision",
+          "when": "false"
         }
       ]
     },

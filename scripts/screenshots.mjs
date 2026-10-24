@@ -33,9 +33,11 @@ async function shot(page, name, clip) {
   await page.close();
 }
 
-// 3. Rebase dialog
+// 3. Rebase dialog, with the preview shown
 {
   const page = await open("rebase", 920, 900);
+  await page.click("button:has-text('Preview')");
+  await page.waitForSelector(".mini-graph");
   const h = await page.evaluate(() => document.querySelector(".dialog").getBoundingClientRect().bottom);
   await shot(page, "rebase-dialog.png", { x: 0, y: 0, width: 920, height: Math.ceil(h) });
   await page.close();
