@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1
 
 ### Fixed
 - Choosing a density right after updating, before the window reloaded, failed with "visualJujutsu.density is not a registered configuration". It now explains and offers **Reload Window**.
