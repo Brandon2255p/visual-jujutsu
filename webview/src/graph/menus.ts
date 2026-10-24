@@ -17,8 +17,8 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
     const n = ids.length;
     return [
       { label: `New merge revision of ${n}`, run: () => act({ kind: "new", changeIds: ids, mode: "onto" }) },
-      { label: `Rebase ${n} revisions…`, run: () => notSupported("Rebase multiple revisions") },
-      { label: `Squash ${n} revisions into…`, run: () => notSupported("Squash multiple revisions") },
+      { label: `Rebase ${n} revisions onto…`, disabled: selection.some((r) => r.immutable), run: () => act({ kind: "rebaseMany", changeIds: ids }) },
+      { label: `Squash ${n} revisions into…`, disabled: selection.some((r) => r.immutable), run: () => act({ kind: "squashMany", changeIds: ids }) },
       "-",
       { label: `Abandon ${n} revisions…`, kb: "⌫", disabled: selection.some((r) => r.immutable), run: () => act({ kind: "abandon", changeIds: ids }) },
     ];
@@ -26,9 +26,12 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
 
   const ro = rev.immutable;
   const bookmarks = rev.localBookmarks.map((b) => b.name);
-  const pushEntries: MenuEntry[] = bookmarks.length
-    ? bookmarks.map((name) => ({ label: `Push bookmark “${name}”`, run: () => act({ kind: "pushBookmark", name }) }))
-    : [{ label: "Push (create bookmark)", disabled: ro, run: () => act({ kind: "pushChange", changeId: id }) }];
+  const pushEntries: MenuEntry[] = [
+    ...(bookmarks.length
+      ? bookmarks.map((name) => ({ label: `Push bookmark “${name}”`, run: () => act({ kind: "pushBookmark", name }) }))
+      : [{ label: "Push (create bookmark)", disabled: ro, run: () => act({ kind: "pushChange", changeId: id }) }]),
+    { label: "Push stack…", disabled: ro, run: () => act({ kind: "pushStack", changeId: id }) },
+  ];
 
   return [
     { label: "Describe…", kb: "Enter", disabled: ro, run: () => startDescribe(id) },
@@ -59,8 +62,11 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
     { label: "Rebase on main", disabled: ro, run: () => act({ kind: "rebaseOnTrunk", changeId: id }) },
     { label: "Squash into parent", kb: "S", disabled: ro, run: () => act({ kind: "squashIntoParent", changeId: id }) },
     { label: "Squash into…", disabled: ro, run: () => act({ kind: "squashInto", from: id }) },
-    { label: "Split…", disabled: ro, run: () => notSupported("Split revision") },
-    { label: "Absorb into stack", disabled: !rev.isWorkingCopy, run: () => notSupported("Absorb") },
+    { label: "Split…", disabled: ro || rev.empty, run: () => act({ kind: "split", changeId: id }) },
+    { label: "Absorb into stack", disabled: ro || rev.empty, run: () => act({ kind: "absorb", changeId: id }) },
+    { label: "Move up", kb: "⌥↑", disabled: ro, run: () => act({ kind: "reorder", changeId: id, direction: "up" }) },
+    { label: "Move down", kb: "⌥↓", disabled: ro, run: () => act({ kind: "reorder", changeId: id, direction: "down" }) },
+    ...(rev.conflict ? [{ label: "Resolve conflicts…", run: () => act({ kind: "resolveConflicts", changeId: id }) }] : []),
     { label: "Duplicate", run: () => notSupported("Duplicate revision") },
     "-",
     {
@@ -69,9 +75,10 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
         { label: "Create bookmark…", run: () => act({ kind: "createBookmark", changeId: id }) },
         { label: "Move bookmark here…", run: () => act({ kind: "moveBookmarkHere", changeId: id }) },
         "-",
-        { label: "Rename…", disabled: !bookmarks.length, run: () => notSupported("Rename bookmark") },
-        { label: "Delete…", disabled: !bookmarks.length, run: () => notSupported("Delete bookmark") },
-        { label: "Track / untrack remote…", run: () => notSupported("Track remote bookmarks") },
+        { label: "Rename…", disabled: !bookmarks.length, run: () => act({ kind: "renameBookmark", changeId: id }) },
+        { label: "Delete…", disabled: !bookmarks.length, run: () => act({ kind: "deleteBookmark", changeId: id }) },
+        { label: "Forget (local only)…", disabled: !bookmarks.length, run: () => act({ kind: "forgetBookmark", changeId: id }) },
+        { label: "Track / untrack remote…", run: () => act({ kind: "trackBookmarks" }) },
         { label: "Advance closest bookmark here", run: () => notSupported("Advance bookmark") },
       ],
     },
@@ -88,7 +95,13 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
   ];
 }
 
-export function fileMenu(rev: Revision, paths: string[], parent: Revision | undefined, openDiff: () => void): MenuEntry[] {
+export function fileMenu(
+  rev: Revision,
+  paths: string[],
+  parent: Revision | undefined,
+  conflicted: boolean,
+  openDiff: () => void,
+): MenuEntry[] {
   const n = paths.length;
   const what = n === 1 ? "file" : `${n} files`;
   return [
@@ -99,8 +112,10 @@ export function fileMenu(rev: Revision, paths: string[], parent: Revision | unde
       disabled: rev.immutable || !parent || parent.immutable,
       run: () => parent && act({ kind: "moveFiles", from: rev.changeId, into: parent.changeId, paths }),
     },
-    { label: `Split ${what} into a new revision`, disabled: rev.immutable, run: () => notSupported("Split by file") },
-    { label: `Restore ${what} from parent`, disabled: rev.immutable, run: () => notSupported("Restore file") },
+    { label: `Split ${what} into a separate revision`, disabled: rev.immutable, run: () => act({ kind: "split", changeId: rev.changeId, paths }) },
+    { label: `Discard changes to ${what}`, disabled: rev.immutable, run: () => act({ kind: "restoreFiles", changeId: rev.changeId, paths }) },
+    ...(conflicted && n === 1 ? [{ label: "Resolve with merge tool…", run: () => act({ kind: "resolveConflicts", changeId: rev.changeId, path: paths[0] }) }] : []),
+    ...(rev.isWorkingCopy && n === 1 ? [{ label: "Open file", run: () => act({ kind: "openWorkingCopyFile", path: paths[0] }) }] : []),
     "-",
     { label: "Copy path", disabled: n !== 1, run: () => act({ kind: "copy", text: paths[0], label: "path" }) },
   ];

@@ -1,4 +1,4 @@
-import type { Bookmark, ChangedFile, FileStatus, RemoteBookmark, Revision } from "../shared/types";
+import type { Bookmark, ChangedFile, FileStatus, Operation, RemoteBookmark, RemoteBookmarkRef, Revision } from "../shared/types";
 import type { NewMode, RebaseSource, RebaseTarget } from "../shared/protocol";
 import { CommandLog, Runner } from "./cli";
 
@@ -72,7 +72,17 @@ const OP_TEMPLATE =
     id: str("self.id().short()"),
     description: str("self.description()"),
     time: str(`self.time().end().format(${TIME_FORMAT})`),
+    user: str("self.user()"),
+    current: bool("self.current_operation()"),
   }) + ` ++ "\\n"`;
+
+// `present` skips placeholders: from jj 0.36, new local bookmarks are tracked
+// on the remote before they exist there.
+const REMOTE_BOOKMARK_TEMPLATE = `if(remote, if(present, ${obj({
+  name: str("name"),
+  remote: str("remote"),
+  tracked: bool("tracked"),
+})} ++ "\\n"))`;
 
 export const MIN_JJ_VERSION = "0.27.0";
 
@@ -222,10 +232,20 @@ export class JjRepo {
     return this.run(["file", "show", "-r", changeId, "--", `root-file:${JSON.stringify(path)}`], true);
   }
 
-  async lastOperation(): Promise<{ id: string; description: string; time: string } | null> {
-    const out = await this.run(["op", "log", "-n", "1", "--no-graph", "-T", OP_TEMPLATE], true);
-    const line = out.split("\n").find((l) => l.trim());
-    return line ? JSON.parse(line) : null;
+  async lastOperation(): Promise<Operation | null> {
+    return (await this.operations(1))[0] ?? null;
+  }
+
+  async operations(limit: number): Promise<Operation[]> {
+    const out = await this.run(["op", "log", "-n", String(limit), "--no-graph", "-T", OP_TEMPLATE], true);
+    return out
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+  }
+
+  restoreOperation(id: string) {
+    return this.run(["op", "restore", id]);
   }
 
   async remotes(): Promise<{ name: string; url: string }[]> {
@@ -237,6 +257,16 @@ export class JjRepo {
         const [name, url] = l.split(/\s+/);
         return { name, url };
       });
+  }
+
+  /** A revset for several revisions; jj before 0.32 needs `all:` when it can match more than one. */
+  private many(ids: string[]) {
+    const set = ids.join(" | ");
+    return ids.length > 1 && !this.atLeast("0.32.0") ? `all:${set}` : set;
+  }
+
+  private fileset(paths: string[]) {
+    return paths.map((p) => `root-file:${JSON.stringify(p)}`);
   }
 
   describe(changeId: string, message: string) {
@@ -271,16 +301,54 @@ export class JjRepo {
       into,
       "--use-destination-message",
       "--",
-      ...paths.map((p) => `root-file:${JSON.stringify(p)}`),
+      ...this.fileset(paths),
     ]);
   }
 
+  /** Squashes several revisions into one, with an explicit message so no editor opens. */
+  squashMany(from: string[], into: string, message: string) {
+    return this.run(["squash", "--from", this.many(from), "--into", into, "-m", message]);
+  }
+
+  /**
+   * Moves the given files out of a revision into a new revision just before it.
+   * Both keep the original description; `JJ_EDITOR=true` accepts it unchanged
+   * (`split --message` only exists from jj 0.30).
+   */
+  split(changeId: string, paths: string[]) {
+    return this.runner.run(["split", "-r", changeId, "--", ...this.fileset(paths)], { env: { JJ_EDITOR: "true" } });
+  }
+
+  /** Moves each change in a revision into the mutable ancestor that last touched those lines. */
+  absorb(from: string) {
+    return this.run(["absorb", "--from", from]);
+  }
+
+  /** Discards a revision's changes to the given files (back to the parent's version). */
+  restoreFiles(changeId: string, paths: string[]) {
+    return this.run(["restore", "--from", `${changeId}-`, "--into", changeId, "--", ...this.fileset(paths)]);
+  }
+
+  /** --onto/-o replaced --destination/-d in jj 0.36. */
+  private targetFlag(target: RebaseTarget) {
+    return target === "o" && !this.atLeast("0.36.0") ? "-d" : `-${target}`;
+  }
+
   rebase(source: RebaseSource, changeId: string, target: RebaseTarget, destination: string, skipEmptied = false) {
-    // --onto/-o replaced --destination/-d in jj 0.36.
-    const where = target === "o" && !this.atLeast("0.36.0") ? "-d" : `-${target}`;
-    const args = ["rebase", `-${source}`, changeId, where, destination];
+    const args = ["rebase", `-${source}`, changeId, this.targetFlag(target), destination];
     if (skipEmptied) args.push("--skip-emptied");
     return this.run(args);
+  }
+
+  /** Rebases several revisions (or several roots with their descendants) at once. */
+  rebaseMany(source: "r" | "s", changeIds: string[], target: RebaseTarget, destination: string) {
+    return this.run(["rebase", `-${source}`, this.many(changeIds), this.targetFlag(target), destination]);
+  }
+
+  /** Rebases every stack of your mutable revisions onto trunk. */
+  rebaseAllOnTrunk() {
+    const roots = "roots(mutable() & mine() ~ ::trunk())";
+    return this.run(["rebase", "-s", this.atLeast("0.32.0") ? roots : `all:${roots}`, this.targetFlag("o"), "trunk()"]);
   }
 
   createBookmark(name: string, changeId: string) {
@@ -293,6 +361,37 @@ export class JjRepo {
     return this.run(args);
   }
 
+  renameBookmark(oldName: string, newName: string) {
+    return this.run(["bookmark", "rename", oldName, newName]);
+  }
+
+  /** Deletes local bookmarks; the deletion reaches the remote on the next push. */
+  deleteBookmarks(names: string[]) {
+    return this.run(["bookmark", "delete", ...names]);
+  }
+
+  /** Forgets bookmarks locally without deleting them on the remote. */
+  forgetBookmarks(names: string[]) {
+    return this.run(["bookmark", "forget", ...names]);
+  }
+
+  trackBookmark(name: string, remote: string) {
+    return this.run(["bookmark", "track", `${name}@${remote}`]);
+  }
+
+  untrackBookmark(name: string, remote: string) {
+    return this.run(["bookmark", "untrack", `${name}@${remote}`]);
+  }
+
+  async remoteBookmarks(): Promise<RemoteBookmarkRef[]> {
+    const out = await this.run(["bookmark", "list", "--all-remotes", "-T", REMOTE_BOOKMARK_TEMPLATE], true);
+    return out
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l): RemoteBookmarkRef => JSON.parse(l))
+      .filter((b) => b.remote !== "git");
+  }
+
   async bookmarkNames(): Promise<string[]> {
     const out = await this.run(["bookmark", "list", "-T", 'name ++ "\\n"'], true);
     return [...new Set(out.split("\n").filter((l) => l.trim()))];
@@ -302,14 +401,19 @@ export class JjRepo {
     return this.run(["git", "fetch"]);
   }
 
-  push(args: { bookmarks?: string[]; changes?: string[]; dryRun?: boolean } = {}) {
+  /**
+   * Pushes bookmarks (by name, or every bookmark in `revisions`) and changes.
+   * With dryRun, resolves with jj's report of what would change.
+   */
+  push(args: { bookmarks?: string[]; revisions?: string; changes?: string[]; dryRun?: boolean } = {}) {
     const a = ["git", "push"];
     for (const b of args.bookmarks ?? []) a.push("-b", b);
+    if (args.revisions) a.push("-r", args.revisions);
     for (const c of args.changes ?? []) a.push("-c", c);
     // Before jj 0.42, pushing a bookmark the remote doesn't have yet needs --allow-new (deprecated in 0.36, removed in 0.42).
-    if (args.bookmarks?.length && !this.atLeast("0.42.0")) a.push("--allow-new");
+    if ((args.bookmarks?.length || args.revisions) && !this.atLeast("0.42.0")) a.push("--allow-new");
     if (args.dryRun) a.push("--dry-run");
-    return this.run(a);
+    return this.runner.run(a, { includeStderr: args.dryRun });
   }
 
   undo() {

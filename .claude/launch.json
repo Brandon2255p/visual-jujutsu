@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "webview-dev",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5178", "--bind", "127.0.0.1"],
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "exec python3 -m http.server \"${PORT:-5178}\" --bind 127.0.0.1"],
       "port": 5178
     }
   ]

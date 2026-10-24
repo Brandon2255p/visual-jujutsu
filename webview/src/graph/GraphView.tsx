@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { ChangedFile, GraphRow, GraphState, PullRequest, Revision } from "../../../src/shared/types";
+import type { ChangedFile, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
 import { nodeKind } from "../../../src/shared/types";
 import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { Icon } from "../icons";
@@ -8,6 +8,7 @@ import { cls, firstLine, relativeTime, shortId, splitPath } from "../util";
 import { Gutter, gutterWidth } from "./Gutter";
 import { Menu, MenuEntry } from "./Menu";
 import { fileMenu, revisionMenu } from "./menus";
+import { OpLog } from "./OpLog";
 
 type Drag =
   | { kind: "rev"; changeId: string }
@@ -37,6 +38,10 @@ export function GraphView() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const [revsetDraft, setRevsetDraft] = useState("");
+  const [view, setView] = useState<"graph" | "oplog">("graph");
+  const [operations, setOperations] = useState<Operation[] | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   const listRef = useRef<HTMLDivElement>(null);
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
@@ -51,6 +56,9 @@ export function GraphView() {
         setExpanded((prev) => new Set([...prev].filter((id) => ids.has(id))));
         setSelected((prev) => prev.filter((id) => ids.has(id)));
         for (const id of expandedRef.current) if (ids.has(id)) post({ type: "loadFiles", changeId: id });
+        if (viewRef.current === "oplog") post({ type: "loadOperations" });
+      } else if (m.type === "operations") {
+        setOperations(m.operations);
       } else if (m.type === "files") {
         setFiles((prev) => new Map(prev).set(m.changeId, m.files));
       } else if (m.type === "busy") {
@@ -145,6 +153,11 @@ export function GraphView() {
       setSelected([id]);
       listRef.current?.querySelector(`[data-id="${id}"]`)?.scrollIntoView({ block: "nearest" });
     };
+    if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      if (cur && !cur.immutable) act({ kind: "reorder", changeId: cur.changeId, direction: e.key === "ArrowUp" ? "up" : "down" });
+      e.preventDefault();
+      return;
+    }
     switch (e.key) {
       case "ArrowDown":
         move(i + 1);
@@ -313,9 +326,16 @@ export function GraphView() {
               y: r.bottom + 2,
               entries: [
                 { label: "Push all tracked bookmarks", run: () => act({ kind: "push" }) },
-                { label: "Rebase all my stacks on main", run: () => notSupported("Rebase all stacks on main") },
+                { label: "Rebase all my stacks on main", run: () => act({ kind: "rebaseAllOnTrunk" }) },
+                { label: "Track / untrack remote bookmarks…", run: () => act({ kind: "trackBookmarks" }) },
                 "-",
-                { label: "Operation log", run: () => notSupported("Operation log") },
+                {
+                  label: "Operation log",
+                  run: () => {
+                    setView("oplog");
+                    post({ type: "loadOperations" });
+                  },
+                },
                 { label: "Show command log", run: () => act({ kind: "showCommandLog" }) },
                 { label: "Settings", run: () => act({ kind: "openSettings" }) },
               ],
@@ -328,170 +348,194 @@ export function GraphView() {
 
       <div class="views">
         <div class="segmented">
-          <button class="icon-btn active" title="Revision graph">
+          <button class={cls("icon-btn", view === "graph" && "active")} title="Revision graph" onClick={() => setView("graph")}>
             <Icon name="graph" />
           </button>
           <button class="icon-btn" title="Pull requests" onClick={() => notSupported("Pull requests view")}>
             <Icon name="pull-request" />
           </button>
-          <button class="icon-btn" title="Operation log" onClick={() => notSupported("Operation log")}>
+          <button
+            class={cls("icon-btn", view === "oplog" && "active")}
+            title="Operation log"
+            onClick={() => {
+              setView("oplog");
+              post({ type: "loadOperations" });
+            }}
+          >
             <Icon name="history" />
           </button>
         </div>
         <div class="spacer" />
-        <select
-          class="select"
-          title="Revset preset"
-          value={presetMatch ? presetMatch.name : "__custom"}
-          onChange={(e) => {
-            const p = state.presets.find((x) => x.name === (e.currentTarget as HTMLSelectElement).value);
-            if (p) post({ type: "setRevset", revset: p.revset });
-          }}
-        >
-          {state.presets.map((p) => (
-            <option value={p.name}>{p.name}</option>
-          ))}
-          {!presetMatch && <option value="__custom">Custom</option>}
-        </select>
-        {mine && (
-          <button
-            class={cls("icon-btn", state.revset === mine.revset && "active")}
-            title="Only my revisions"
-            onClick={() => post({ type: "setRevset", revset: state.revset === mine.revset ? "" : mine.revset })}
-          >
-            <Icon name="person" />
-          </button>
+        {view === "graph" && (
+          <>
+            <select
+              class="select"
+              title="Revset preset"
+              value={presetMatch ? presetMatch.name : "__custom"}
+              onChange={(e) => {
+                const p = state.presets.find((x) => x.name === (e.currentTarget as HTMLSelectElement).value);
+                if (p) post({ type: "setRevset", revset: p.revset });
+              }}
+            >
+              {state.presets.map((p) => (
+                <option value={p.name}>{p.name}</option>
+              ))}
+              {!presetMatch && <option value="__custom">Custom</option>}
+            </select>
+            {mine && (
+              <button
+                class={cls("icon-btn", state.revset === mine.revset && "active")}
+                title="Only my revisions"
+                onClick={() => post({ type: "setRevset", revset: state.revset === mine.revset ? "" : mine.revset })}
+              >
+                <Icon name="person" />
+              </button>
+            )}
+          </>
         )}
       </div>
 
-      <div class="revset">
-        <div class="input-wrap" title="Revset. Press Enter to apply.">
-          <Icon name="filter" />
-          <input
-            value={revsetDraft}
-            placeholder="jj default (revsets.log)"
-            spellcheck={false}
-            onInput={(e) => setRevsetDraft((e.currentTarget as HTMLInputElement).value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") post({ type: "setRevset", revset: revsetDraft });
-              if (e.key === "Escape") setRevsetDraft(state.revset);
-            }}
-          />
-        </div>
-      </div>
+      {view === "oplog" && <OpLog operations={operations} />}
 
-      {state.error && (
-        <div class="banner">
-          <Icon name="x-circle" />
-          <span>{state.error.trim()}</span>
-        </div>
-      )}
+      {view === "graph" && (
+        <>
+          <div class="revset">
+            <div class="input-wrap" title="Revset. Press Enter to apply.">
+              <Icon name="filter" />
+              <input
+                value={revsetDraft}
+                placeholder="jj default (revsets.log)"
+                spellcheck={false}
+                onInput={(e) => setRevsetDraft((e.currentTarget as HTMLInputElement).value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") post({ type: "setRevset", revset: revsetDraft });
+                  if (e.key === "Escape") setRevsetDraft(state.revset);
+                }}
+              />
+            </div>
+          </div>
 
-      <div class="graph" ref={listRef} tabIndex={0} onKeyDown={onListKey}>
-        {revisions.length === 0 && !state.error && <div class="empty-state">No revisions match this revset.</div>}
-        {revisions.map((rev) => {
-          const row = rows.get(rev.changeId);
-          if (!row) return null;
-          return (
-            <RevisionBlock
-              key={rev.changeId}
-              rev={rev}
-              row={row}
-              laneCount={laneCount}
-              gutterW={gutterW}
-              selected={selected.includes(rev.changeId)}
-              expanded={expanded.has(rev.changeId)}
-              editing={editing === rev.changeId}
-              files={files.get(rev.changeId)}
-              selectedFiles={selectedFiles}
-              pr={prFor(rev)}
-              remoteTargets={remoteTargets}
-              parent={byCommit.get(rev.parents[0])}
-              drag={drag}
-              drop={drop?.changeId === rev.changeId ? drop : null}
-              canDrop={canDrop(rev)}
-              onClick={(e) => {
-                listRef.current?.focus();
-                selectRow(rev.changeId, e);
-                if (!e.metaKey && !e.ctrlKey && !e.shiftKey) toggleExpanded(rev.changeId);
-              }}
-              onDblClick={() => !rev.immutable && startDescribe(rev.changeId)}
-              onMenu={(x, y) => openRevisionMenu(rev, x, y)}
-              onSaveDescription={(message) => {
-                setEditing(null);
-                if (message !== rev.description.trimEnd()) act({ kind: "describe", changeId: rev.changeId, message });
-                listRef.current?.focus();
-              }}
-              onCancelEdit={() => {
-                setEditing(null);
-                listRef.current?.focus();
-              }}
-              onFileClick={(path, e) => {
-                const k = fileKey(rev.changeId, path);
-                if (e.metaKey || e.ctrlKey) {
-                  setSelectedFiles((prev) => {
-                    const next = new Set([...prev].filter((x) => x.startsWith(rev.changeId + "\0")));
-                    if (next.has(k)) next.delete(k);
-                    else next.add(k);
-                    return next;
-                  });
-                } else {
-                  setSelectedFiles(new Set([k]));
-                  act({ kind: "openDiff", changeId: rev.changeId, path });
-                }
-              }}
-              onFileMenu={(path, x, y) => {
-                const k = fileKey(rev.changeId, path);
-                const paths = selectedFiles.has(k)
-                  ? [...selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
-                  : [path];
-                if (!selectedFiles.has(k)) setSelectedFiles(new Set([k]));
-                setMenu({
-                  x,
-                  y,
-                  entries: fileMenu(rev, paths, byCommit.get(rev.parents[0]), () => act({ kind: "openDiff", changeId: rev.changeId, path })),
-                });
-              }}
-              onDragStart={(d) => setDrag(d)}
-              onDragOver={(e, el) => {
-                if (!canDrop(rev)) return;
-                e.preventDefault();
-                const next = { changeId: rev.changeId, zone: zoneFor(e, el), alt: e.altKey, shift: e.shiftKey };
-                if (!drop || drop.changeId !== next.changeId || drop.zone !== next.zone || drop.alt !== next.alt || drop.shift !== next.shift) setDrop(next);
-              }}
-              onDrop={(e, el) => {
-                e.preventDefault();
-                finishDrop(rev, { changeId: rev.changeId, zone: zoneFor(e, el), alt: e.altKey, shift: e.shiftKey });
-                endDrag();
-              }}
-              onDragEnd={endDrag}
-            />
-          );
-        })}
-      </div>
-
-      {hint && (
-        <div class="drop-hint">
-          <div class="title">{hint.title}</div>
-          <div class="cmd">{hint.cmd}</div>
-          {hint.keys && (
-            <div class="keys">
-              <div class={hint.keys.source === "s" ? "on-text" : ""}>
-                <span class={cls("key", hint.keys.source === "s" && "on")}>drag</span> With descendants (-s)
-              </div>
-              <div class={hint.keys.source === "r" ? "on-text" : ""}>
-                <span class={cls("key", hint.keys.source === "r" && "on")}>⌥</span> This revision only (-r)
-              </div>
-              <div class={hint.keys.source === "b" ? "on-text" : ""}>
-                <span class={cls("key", hint.keys.source === "b" && "on")}>⇧</span> Whole branch (-b)
-              </div>
-              <div class={hint.keys.where !== "o" ? "on-text" : ""}>
-                <span class={cls("key", hint.keys.where !== "o" && "on")}>top / bottom edge</span> Insert before (-B) / after (-A)
-              </div>
+          {state.error && (
+            <div class="banner">
+              <Icon name="x-circle" />
+              <span>{state.error.trim()}</span>
             </div>
           )}
-          <div class="hint">Release to apply · Esc to cancel · ⌘Z to undo</div>
-        </div>
+
+          <div class="graph" ref={listRef} tabIndex={0} onKeyDown={onListKey}>
+            {revisions.length === 0 && !state.error && <div class="empty-state">No revisions match this revset.</div>}
+            {revisions.map((rev) => {
+              const row = rows.get(rev.changeId);
+              if (!row) return null;
+              return (
+                <RevisionBlock
+                  key={rev.changeId}
+                  rev={rev}
+                  row={row}
+                  laneCount={laneCount}
+                  gutterW={gutterW}
+                  selected={selected.includes(rev.changeId)}
+                  expanded={expanded.has(rev.changeId)}
+                  editing={editing === rev.changeId}
+                  files={files.get(rev.changeId)}
+                  selectedFiles={selectedFiles}
+                  pr={prFor(rev)}
+                  remoteTargets={remoteTargets}
+                  parent={byCommit.get(rev.parents[0])}
+                  drag={drag}
+                  drop={drop?.changeId === rev.changeId ? drop : null}
+                  canDrop={canDrop(rev)}
+                  onClick={(e) => {
+                    listRef.current?.focus();
+                    selectRow(rev.changeId, e);
+                    if (!e.metaKey && !e.ctrlKey && !e.shiftKey) toggleExpanded(rev.changeId);
+                  }}
+                  onDblClick={() => !rev.immutable && startDescribe(rev.changeId)}
+                  onMenu={(x, y) => openRevisionMenu(rev, x, y)}
+                  onSaveDescription={(message) => {
+                    setEditing(null);
+                    if (message !== rev.description.trimEnd()) act({ kind: "describe", changeId: rev.changeId, message });
+                    listRef.current?.focus();
+                  }}
+                  onCancelEdit={() => {
+                    setEditing(null);
+                    listRef.current?.focus();
+                  }}
+                  onFileClick={(path, e) => {
+                    const k = fileKey(rev.changeId, path);
+                    if (e.metaKey || e.ctrlKey) {
+                      setSelectedFiles((prev) => {
+                        const next = new Set([...prev].filter((x) => x.startsWith(rev.changeId + "\0")));
+                        if (next.has(k)) next.delete(k);
+                        else next.add(k);
+                        return next;
+                      });
+                    } else {
+                      setSelectedFiles(new Set([k]));
+                      act({ kind: "openDiff", changeId: rev.changeId, path });
+                    }
+                  }}
+                  onFileMenu={(path, x, y) => {
+                    const k = fileKey(rev.changeId, path);
+                    const paths = selectedFiles.has(k)
+                      ? [...selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
+                      : [path];
+                    if (!selectedFiles.has(k)) setSelectedFiles(new Set([k]));
+                    setMenu({
+                      x,
+                      y,
+                      entries: fileMenu(
+                        rev,
+                        paths,
+                        byCommit.get(rev.parents[0]),
+                        (files.get(rev.changeId) ?? []).some((f) => f.conflict && paths.includes(f.path)),
+                        () => act({ kind: "openDiff", changeId: rev.changeId, path }),
+                      ),
+                    });
+                  }}
+                  onDragStart={(d) => setDrag(d)}
+                  onDragOver={(e, el) => {
+                    if (!canDrop(rev)) return;
+                    e.preventDefault();
+                    const next = { changeId: rev.changeId, zone: zoneFor(e, el), alt: e.altKey, shift: e.shiftKey };
+                    if (!drop || drop.changeId !== next.changeId || drop.zone !== next.zone || drop.alt !== next.alt || drop.shift !== next.shift) setDrop(next);
+                  }}
+                  onDrop={(e, el) => {
+                    e.preventDefault();
+                    finishDrop(rev, { changeId: rev.changeId, zone: zoneFor(e, el), alt: e.altKey, shift: e.shiftKey });
+                    endDrag();
+                  }}
+                  onDragEnd={endDrag}
+                />
+              );
+            })}
+          </div>
+
+          {hint && (
+            <div class="drop-hint">
+              <div class="title">{hint.title}</div>
+              <div class="cmd">{hint.cmd}</div>
+              {hint.keys && (
+                <div class="keys">
+                  <div class={hint.keys.source === "s" ? "on-text" : ""}>
+                    <span class={cls("key", hint.keys.source === "s" && "on")}>drag</span> With descendants (-s)
+                  </div>
+                  <div class={hint.keys.source === "r" ? "on-text" : ""}>
+                    <span class={cls("key", hint.keys.source === "r" && "on")}>⌥</span> This revision only (-r)
+                  </div>
+                  <div class={hint.keys.source === "b" ? "on-text" : ""}>
+                    <span class={cls("key", hint.keys.source === "b" && "on")}>⇧</span> Whole branch (-b)
+                  </div>
+                  <div class={hint.keys.where !== "o" ? "on-text" : ""}>
+                    <span class={cls("key", hint.keys.where !== "o" && "on")}>top / bottom edge</span> Insert before (-B) / after (-A)
+                  </div>
+                </div>
+              )}
+              <div class="hint">Release to apply · Esc to cancel · ⌘Z to undo</div>
+            </div>
+          )}
+
+        </>
       )}
 
       <div class="footer">

@@ -1,7 +1,7 @@
 // Fake extension host for previewing the webview in a plain browser
 // (webview/dev.html). Not used inside VS Code.
 import type { HostMessage, WebviewMessage } from "../../../src/shared/protocol";
-import type { ChangedFile, GraphState, Revision } from "../../../src/shared/types";
+import type { ChangedFile, GraphState, Operation, Revision } from "../../../src/shared/types";
 import { layoutGraph } from "../../../src/shared/graph";
 
 const now = Date.now();
@@ -71,7 +71,17 @@ const pullRequests: GraphState["pullRequests"] = [
 ];
 
 let revset = "";
-let lastOperation = { id: "3f2a1c8", description: "describe commit ryzxvmos", time: ago(2) };
+const op = (id: string, description: string, min: number): Operation => ({ id, description, time: ago(min), user: "brandon@mbp", current: false });
+let operations: Operation[] = [
+  op("3f2a1c8e7d01", "describe commit ryzxvmos", 2),
+  op("a91b0e2f6c33", "squash commits into mzkroyxu", 5),
+  op("7c3d551a0b9e", "rebase commit vnolmswp", 9),
+  op("e40f9b1d2a77", "fetch from git remote(s) origin", 14),
+  op("19aa7c04be52", "new empty commit", 20),
+  op("5be2d33f8a10", "push bookmark graph-view to git remote origin", 65),
+  op("0d81e4f9c2d4", "snapshot working copy", 70),
+];
+operations[0].current = true;
 
 function state(): GraphState {
   return {
@@ -86,7 +96,7 @@ function state(): GraphState {
     revisions,
     layout: layoutGraph(revisions),
     pullRequests,
-    lastOperation,
+    lastOperation: operations[0],
     error: null,
   };
 }
@@ -129,6 +139,9 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       revset = message.revset;
       emit({ type: "state", state: state() });
       break;
+    case "loadOperations":
+      emit({ type: "operations", operations });
+      break;
     case "loadFiles":
       emit({ type: "files", changeId: message.changeId, files: filesOf(message.changeId) });
       break;
@@ -144,11 +157,14 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
         rebase(a.source, a.changeId, a.destination);
       } else break;
       const short = (id: string) => id.slice(0, 8);
-      const op =
+      const opText =
         a.kind === "describe" ? `describe commit ${short(a.changeId)}`
         : a.kind === "moveFiles" ? `squash --from ${short(a.from)} --into ${short(a.into)}`
         : `rebase -${a.source} ${short(a.changeId)} -o ${short(a.destination!)}`;
-      lastOperation = { id: Math.random().toString(16).slice(2, 9), description: op, time: new Date().toISOString() };
+      operations = [
+        { id: Math.random().toString(16).slice(2, 14), description: opText, time: new Date().toISOString(), user: "brandon@mbp", current: true },
+        ...operations.map((o) => ({ ...o, current: false })),
+      ];
       // Behave like the real host: show progress briefly, then the new state.
       emit({ type: "busy", busy: true, label: "Working…" });
       setTimeout(() => {

@@ -147,6 +147,26 @@
         "command": "visualJujutsu.movePullRequest",
         "title": "Move Pull Request to Revision…",
         "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.absorb",
+        "title": "Absorb Changes into Stack…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.split",
+        "title": "Split Revision…",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.rebaseAllOnTrunk",
+        "title": "Rebase All My Stacks on Main",
+        "category": "Visual Jujutsu"
+      },
+      {
+        "command": "visualJujutsu.trackBookmarks",
+        "title": "Track / Untrack Remote Bookmarks…",
+        "category": "Visual Jujutsu"
       }
     ],
     "menus": {

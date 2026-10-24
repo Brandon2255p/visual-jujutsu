@@ -60,6 +60,13 @@ export class GraphViewProvider implements vscode.WebviewViewProvider, vscode.Dis
           this.post({ type: "files", changeId: message.changeId, files: [] });
         }
         break;
+      case "loadOperations":
+        try {
+          this.post({ type: "operations", operations: await this.controller.operations() });
+        } catch {
+          this.post({ type: "operations", operations: [] });
+        }
+        break;
       case "action":
         await this.controller.run(message.action);
         break;

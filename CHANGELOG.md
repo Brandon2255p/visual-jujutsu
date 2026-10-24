@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Operation log** view (history button): every jj operation with time and user; restore the repo to any of them (`jj op restore`).
+- **Split** a revision: pick files from the revision menu, or split selected files from the file menu (`jj split`).
+- **Absorb** a revision's changes into the mutable revisions that last touched those lines (`jj absorb`).
+- **Discard changes** to files in a revision, back to the parent's version (`jj restore`).
+- **Move up / Move down** to reorder a revision within its stack (⌥↑ / ⌥↓).
+- **Rebase all my stacks on main** from the toolbar's More menu.
+- Multi-select: **rebase** or **squash** several revisions at once.
+- Bookmarks: **rename**, **delete**, **forget** and **track / untrack** remote bookmarks.
+- **Push stack**: push every bookmark between trunk and a revision.
+- **Push preview**: pushing from the toolbar or a stack first shows jj's dry-run report and asks to confirm.
+- **Resolve conflicts** with your merge tool (`jj resolve` in a terminal); open conflicted files in the working copy.
+- Command palette: Absorb, Split, Rebase All My Stacks on Main, Track / Untrack Remote Bookmarks.
+
 ## 0.1.1 (pre-release)
 
 ### Fixed

@@ -2,6 +2,8 @@ const vscode = require("vscode");
 const assert = require("node:assert");
 const { execFile } = require("node:child_process");
 const { promisify } = require("node:util");
+const { writeFileSync } = require("node:fs");
+const { join } = require("node:path");
 const execAsync = promisify(execFile);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -62,6 +64,13 @@ exports.run = async function run() {
   // A failing command must not hang (its error is shown without waiting).
   await vscode.commands.executeCommand("visualJujutsu.edit", "doesnotexist");
   step("failed command returned");
+
+  // Absorb a working-copy edit back into the revision that added the file.
+  await vscode.commands.executeCommand("visualJujutsu.newRevision", feature);
+  writeFileSync(join(cwd, "b.txt"), "two (absorbed)\n");
+  await vscode.commands.executeCommand("visualJujutsu.absorb", "@");
+  step("absorb");
+  assert.strictEqual(await jj("file", "show", "-r", feature, "b.txt"), "two (absorbed)");
 
   await vscode.commands.executeCommand("visualJujutsu.squashIntoParent", feature);
   step("squash");

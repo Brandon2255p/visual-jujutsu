@@ -311,3 +311,18 @@ textarea {
 .stack-row { display: flex; align-items: center; gap: 6px; padding: 6px 10px; }
 .stack-row.current { background: var(--vj-selected); color: var(--vj-selected-fg); }
 .mini-node { width: 14px; height: 14px; flex: none; }
+
+/* ---- Operation log ---- */
+.op { display: flex; gap: 10px; padding: 6px 8px 6px 12px; cursor: default; }
+.op:hover { background: var(--vj-hover); }
+.op.selected { background: var(--vj-selected); color: var(--vj-selected-fg); }
+.op-icon { width: 16px; height: 16px; flex: none; margin-top: 1px; color: var(--vj-fg-2); }
+.op-icon.current { color: var(--vj-link); }
+.op-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.op-desc { overflow-wrap: anywhere; }
+.op-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 16px; color: var(--vj-muted); flex-wrap: wrap; }
+.op.selected .op-meta { color: inherit; opacity: 0.8; }
+.op-id { color: var(--vj-commit-id); font-size: 11px; }
+.op-actions { display: flex; gap: 6px; padding-top: 6px; }
+.op-note { display: flex; gap: 6px; padding: 8px 12px; font-size: 11px; line-height: 16px; color: var(--vj-muted); }
+.op-note svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }

@@ -114,6 +114,10 @@ function registerCommands(context: vscode.ExtensionContext, controller: Controll
   reg("visualJujutsu.moveBookmark", withRevision("Move a bookmark to…", (changeId) => ({ kind: "moveBookmarkHere", changeId })));
   reg("visualJujutsu.createPullRequest", withRevision("Create a pull request from…", (changeId) => ({ kind: "openCreatePullRequest", changeId }), mutable));
   reg("visualJujutsu.movePullRequest", withRevision("Move a pull request to…", (changeId) => ({ kind: "movePullRequestHere", changeId }), mutable));
+  reg("visualJujutsu.absorb", withRevision("Absorb changes from which revision?", (changeId) => ({ kind: "absorb", changeId }), mutable));
+  reg("visualJujutsu.split", withRevision("Split which revision?", (changeId) => ({ kind: "split", changeId }), mutable));
+  reg("visualJujutsu.rebaseAllOnTrunk", () => run({ kind: "rebaseAllOnTrunk" }));
+  reg("visualJujutsu.trackBookmarks", () => run({ kind: "trackBookmarks" }));
   reg("visualJujutsu.internal.openRebaseDialog", (changeId: string) => openRebaseDialog(context.extensionUri, controller, changeId));
   reg("visualJujutsu.internal.openCreatePullRequest", (changeId: string) =>
     openCreatePullRequest(context.extensionUri, controller, changeId),

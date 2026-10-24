@@ -18,6 +18,10 @@ export interface RunOptions {
   /** Hide the command from the command log (used for frequent read-only queries). */
   quiet?: boolean;
   stdin?: string;
+  /** Extra environment variables for this command only. */
+  env?: NodeJS.ProcessEnv;
+  /** Resolve with stdout followed by stderr (jj prints some reports, like push dry runs, to stderr). */
+  includeStderr?: boolean;
 }
 
 /**
@@ -51,7 +55,7 @@ export class Runner {
       const child = execFile(
         exe,
         [...this.baseArgs, ...args],
-        { cwd: this.cwd, env: { ...process.env, ...this.env }, maxBuffer: 64 * 1024 * 1024 },
+        { cwd: this.cwd, env: { ...process.env, ...this.env, ...opts.env }, maxBuffer: 64 * 1024 * 1024 },
         (err, stdout, stderr) => {
           if (err) {
             const code = typeof err.code === "number" ? err.code : null;
@@ -63,7 +67,7 @@ export class Runner {
             return;
           }
           if (!opts.quiet && stderr.trim()) this.log.append(stderr.trimEnd());
-          resolve(stdout);
+          resolve(opts.includeStderr ? stdout + stderr : stdout);
         },
       );
       if (opts.stdin !== undefined) {

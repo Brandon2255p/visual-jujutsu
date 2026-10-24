@@ -87,6 +87,20 @@ export interface PullRequest {
   checks: "passing" | "failing" | "pending" | "none";
 }
 
+export interface Operation {
+  id: string;
+  description: string;
+  time: string;
+  user: string;
+  current: boolean;
+}
+
+export interface RemoteBookmarkRef {
+  name: string;
+  remote: string;
+  tracked: boolean;
+}
+
 export interface RevsetPreset {
   name: string;
   revset: string;
@@ -100,7 +114,7 @@ export interface GraphState {
   revisions: Revision[];
   layout: GraphLayout;
   pullRequests: PullRequest[];
-  lastOperation: { id: string; description: string; time: string } | null;
+  lastOperation: Operation | null;
   error: string | null;
 }
 

@@ -66,6 +66,11 @@ For full control, **Open rebase dialog…** shows every `jj rebase` option, a de
 - **Fetch** and **Push** in the toolbar. If a push is rejected, the error offers **Fetch and retry**.
 - **Undo / redo** (⌘Z / ⇧⌘Z in the graph), and destructive actions ask for confirmation first.
 - Keyboard: ↑/↓ select, → / ← expand or collapse, Enter describe, N new, E edit, S squash, R rebase dialog, ⌫ abandon.
+- **Operation log** view: every operation jj recorded, with **Restore to here** for any of them.
+- **Split**, **absorb**, **discard changes** to files, **move up / down** in a stack (⌥↑ / ⌥↓), and **rebase all my stacks on main**.
+- Select several revisions (⌘/⇧-click) to **rebase**, **squash**, **abandon** or **merge** them together.
+- Bookmarks: rename, delete, forget, track / untrack. **Push stack** pushes every bookmark below a revision, and pushes show a **dry-run preview** first.
+- **Resolve conflicts** with your merge tool from the revision or file menu.
 - A **command log** (“Show commands”) listing every `jj` and `gh` command the extension ran.
 - A status bar item showing the working copy's change ID, description and conflicts.
 

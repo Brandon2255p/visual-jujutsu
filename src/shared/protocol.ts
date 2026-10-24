@@ -1,4 +1,4 @@
-import type { ChangedFile, GraphState, Revision, PullRequest } from "./types";
+import type { ChangedFile, GraphState, Operation, Revision, PullRequest } from "./types";
 
 export type RebaseSource = "r" | "s" | "b";
 export type RebaseTarget = "o" | "A" | "B";
@@ -35,12 +35,28 @@ export type Action =
   | { kind: "openPullRequest"; url: string }
   | { kind: "copy"; text: string; label: string }
   | { kind: "openDiff"; changeId: string; path: string }
+  | { kind: "split"; changeId: string; paths?: string[] }
+  | { kind: "absorb"; changeId: string }
+  | { kind: "restoreFiles"; changeId: string; paths: string[] }
+  | { kind: "reorder"; changeId: string; direction: "up" | "down" }
+  | { kind: "rebaseMany"; changeIds: string[] }
+  | { kind: "squashMany"; changeIds: string[] }
+  | { kind: "rebaseAllOnTrunk" }
+  | { kind: "renameBookmark"; changeId: string }
+  | { kind: "deleteBookmark"; changeId: string }
+  | { kind: "forgetBookmark"; changeId: string }
+  | { kind: "trackBookmarks" }
+  | { kind: "pushStack"; changeId: string }
+  | { kind: "resolveConflicts"; changeId: string; path?: string }
+  | { kind: "openWorkingCopyFile"; path: string }
+  | { kind: "restoreOperation"; id: string; description: string }
   | { kind: "notSupported"; feature: string };
 
 export type WebviewMessage =
   | { type: "ready" }
   | { type: "setRevset"; revset: string }
   | { type: "loadFiles"; changeId: string }
+  | { type: "loadOperations" }
   | { type: "action"; action: Action }
   // Dialog panels
   | { type: "rebaseSubmit"; action: Extract<Action, { kind: "rebase" }> }
@@ -76,6 +92,7 @@ export interface CreatePrDialogData {
 export type HostMessage =
   | { type: "state"; state: GraphState }
   | { type: "files"; changeId: string; files: ChangedFile[] }
+  | { type: "operations"; operations: Operation[] }
   | { type: "busy"; busy: boolean; label?: string }
   | { type: "init"; mode: "graph" }
   | { type: "rebaseDialog"; data: RebaseDialogData }

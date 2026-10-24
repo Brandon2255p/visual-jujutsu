@@ -310,6 +310,104 @@ export class Controller implements vscode.Disposable {
       case "openDiff":
         await this.openDiff(action.changeId, action.path);
         return false;
+      case "split":
+        return this.split(action.changeId, action.paths);
+      case "absorb":
+        this.busy("Absorbing…");
+        await repo.absorb(action.changeId);
+        return true;
+      case "restoreFiles": {
+        const n = action.paths.length;
+        const what = n === 1 ? action.paths[0] : `${n} files`;
+        const ok = await this.confirm(
+          `Discard changes to ${what} in ${this.label(action.changeId)}?`,
+          "The files go back to their version in the parent revision. You can undo this.",
+          "Discard changes",
+        );
+        if (!ok) return false;
+        await repo.restoreFiles(action.changeId, action.paths);
+        return true;
+      }
+      case "reorder":
+        return this.reorder(action.changeId, action.direction);
+      case "rebaseMany": {
+        const ids = new Set(action.changeIds);
+        const dest = await this.pickRevision(`Rebase ${ids.size} revisions onto…`, (r) => !ids.has(r.changeId));
+        if (!dest) return false;
+        this.busy("Rebasing…");
+        await repo.rebaseMany("r", action.changeIds, "o", dest.changeId);
+        return true;
+      }
+      case "squashMany": {
+        const ids = new Set(action.changeIds);
+        const into = await this.pickRevision(`Squash ${ids.size} revisions into…`, (r) => !ids.has(r.changeId) && !r.immutable);
+        if (!into) return false;
+        const message = [into, ...action.changeIds.map((id) => this.findRevision(id))]
+          .map((r) => r?.description.trim() ?? "")
+          .filter((d, i, all) => d && all.indexOf(d) === i)
+          .join("\n\n");
+        await repo.squashMany(action.changeIds, into.changeId, message);
+        return true;
+      }
+      case "rebaseAllOnTrunk":
+        if (config().get<boolean>("fetchBeforeRebaseOnTrunk", true)) {
+          this.busy("Fetching…");
+          await repo.fetch();
+        }
+        this.busy("Rebasing all stacks on main…");
+        await repo.rebaseAllOnTrunk();
+        return true;
+      case "renameBookmark": {
+        const name = await this.pickBookmark(action.changeId, "Rename which bookmark?");
+        if (!name) return false;
+        const newName = await vscode.window.showInputBox({
+          title: `Rename bookmark “${name}”`,
+          value: name,
+          validateInput: (v) => (/^[^\s~^:?*[\\]+$/.test(v) ? null : "Enter a bookmark name without spaces"),
+        });
+        if (!newName || newName === name) return false;
+        await repo.renameBookmark(name, newName);
+        return true;
+      }
+      case "deleteBookmark": {
+        const name = await this.pickBookmark(action.changeId, "Delete which bookmark?");
+        if (!name) return false;
+        const ok = await this.confirm(
+          `Delete bookmark “${name}”?`,
+          "It is also deleted on the remote the next time you push. To remove it only locally, use Forget.",
+          "Delete",
+        );
+        if (!ok) return false;
+        await repo.deleteBookmarks([name]);
+        return true;
+      }
+      case "forgetBookmark": {
+        const name = await this.pickBookmark(action.changeId, "Forget which bookmark?");
+        if (!name) return false;
+        await repo.forgetBookmarks([name]);
+        return true;
+      }
+      case "trackBookmarks":
+        return this.trackBookmarks();
+      case "pushStack":
+        return this.pushWithPreview({ revisions: `trunk()..${action.changeId}` }, `bookmarks in the stack up to ${this.label(action.changeId)}`);
+      case "resolveConflicts":
+        this.resolveInTerminal(action.changeId, action.path);
+        return false;
+      case "openWorkingCopyFile":
+        await vscode.commands.executeCommand("vscode.open", vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), action.path));
+        return false;
+      case "restoreOperation": {
+        const ok = await this.confirm(
+          "Restore the repo to this operation?",
+          `“${action.description}”\n\nEverything after it is undone (jj op restore). The restore is itself an operation, so you can undo it.`,
+          "Restore",
+        );
+        if (!ok) return false;
+        this.busy("Restoring…");
+        await repo.restoreOperation(action.id);
+        return true;
+      }
       case "notSupported":
         void this.notSupported(action.feature);
         return false;
@@ -388,11 +486,112 @@ export class Controller implements vscode.Disposable {
     const items = [all, ...names.map((n) => ({ label: n, description: "", value: n as string | null }))];
     const picks = await vscode.window.showQuickPick(items, { title: "Push to origin", canPickMany: true });
     if (!picks || picks.length === 0) return false;
+    if (picks.some((p) => p.value === null)) return this.pushWithPreview({}, "all tracked bookmarks");
+    const bookmarks = picks.map((p) => p.value!);
+    return this.pushWithPreview({ bookmarks }, bookmarks.length === 1 ? `“${bookmarks[0]}”` : `${bookmarks.length} bookmarks`);
+  }
+
+  /** Shows jj's dry-run report, then pushes if the user confirms. */
+  private async pushWithPreview(target: { bookmarks?: string[]; revisions?: string }, what: string) {
+    this.busy("Checking what would be pushed…");
+    const report = await this.repo.push({ ...target, dryRun: true });
+    this.busyEmitter.fire({ busy: false });
+    const lines = report
+      .split("\n")
+      .filter((l) => l.trim() && !/dry-run requested/i.test(l))
+      .join("\n");
+    if (/nothing changed/i.test(report) || !lines) {
+      void vscode.window.showInformationMessage(`Nothing to push for ${what}.`);
+      return false;
+    }
+    const choice = await vscode.window.showInformationMessage(`Push ${what}?`, { modal: true, detail: lines }, "Push");
+    if (choice !== "Push") return false;
     this.busy("Pushing…");
-    if (picks.some((p) => p.value === null)) await this.repo.push();
-    else await this.repo.push({ bookmarks: picks.map((p) => p.value!) });
+    await this.repo.push(target);
     this.prsFetchedAt = 0;
     return true;
+  }
+
+  private async split(changeId: string, paths?: string[]) {
+    let selected = paths;
+    if (!selected) {
+      const files = await this.repo.files(changeId);
+      if (files.length < 2) {
+        void vscode.window.showInformationMessage("Splitting needs a revision with at least two changed files.");
+        return false;
+      }
+      const picks = await vscode.window.showQuickPick(
+        files.map((f) => ({ label: f.path, description: `+${f.added} −${f.removed}` })),
+        { title: `Split ${this.label(changeId)}: pick the files for the first revision`, canPickMany: true },
+      );
+      if (!picks || picks.length === 0 || picks.length === files.length) return false;
+      selected = picks.map((p) => p.label);
+    }
+    await this.repo.split(changeId, selected);
+    return true;
+  }
+
+  /** Swaps a revision with its only child (up) or its parent (down). */
+  private async reorder(changeId: string, direction: "up" | "down") {
+    if (direction === "up") {
+      const children = await this.repo.log(`children(${changeId})`, 3);
+      if (children.length !== 1) throw new Error("Move up needs exactly one child to swap with.");
+      await this.repo.rebase("r", changeId, "A", children[0].changeId);
+    } else {
+      const parents = await this.repo.log(`${changeId}-`, 3);
+      if (parents.length !== 1 || parents[0].immutable) throw new Error("Move down needs a single mutable parent to swap with.");
+      await this.repo.rebase("r", changeId, "B", parents[0].changeId);
+    }
+    return true;
+  }
+
+  private async pickBookmark(changeId: string, title: string) {
+    const names = this.findRevision(changeId)?.localBookmarks.map((b) => b.name) ?? [];
+    if (names.length <= 1) return names[0];
+    return vscode.window.showQuickPick(names, { title });
+  }
+
+  private async trackBookmarks() {
+    const refs = await this.repo.remoteBookmarks();
+    if (refs.length === 0) {
+      void vscode.window.showInformationMessage("There are no remote bookmarks. Fetch first?");
+      return false;
+    }
+    const items = refs.map((r) => ({ label: `${r.name}@${r.remote}`, description: r.tracked ? "tracked" : "", picked: r.tracked, ref: r }));
+    const picks = await vscode.window.showQuickPick(items, {
+      title: "Tracked remote bookmarks (checked = tracked)",
+      canPickMany: true,
+    });
+    if (!picks) return false;
+    const want = new Set(picks.map((p) => p.label));
+    let changed = false;
+    for (const { ref, label } of items) {
+      if (want.has(label) && !ref.tracked) await this.repo.trackBookmark(ref.name, ref.remote);
+      else if (!want.has(label) && ref.tracked) await this.repo.untrackBookmark(ref.name, ref.remote);
+      else continue;
+      changed = true;
+    }
+    return changed;
+  }
+
+  /** Merge tools are interactive, so jj resolve runs in a terminal; the graph refreshes when it finishes. */
+  private resolveInTerminal(changeId: string, path?: string) {
+    const jj = config().get<string>("jjPath", "jj");
+    const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+    const args = ["resolve", "-r", changeId, ...(path ? ["--", quote(`root-file:${JSON.stringify(path)}`)] : [])];
+    const terminal = vscode.window.createTerminal({ name: `jj resolve ${this.label(changeId)}`, cwd: this.repo.root });
+    terminal.show();
+    terminal.sendText([quote(jj), ...args].join(" "));
+    const sub = vscode.window.onDidCloseTerminal((t) => {
+      if (t === terminal) {
+        sub.dispose();
+        void this.refresh();
+      }
+    });
+  }
+
+  operations(limit = 200) {
+    return this.repo.operations(limit);
   }
 
   private async movePullRequestHere(changeId: string) {
