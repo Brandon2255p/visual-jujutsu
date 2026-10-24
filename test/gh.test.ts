@@ -24,6 +24,20 @@ esac
   return { gh, calls: () => readFileSync(calls, "utf8").trim().split("\n") };
 }
 
+describe("pull request actions", () => {
+  it("marks ready and closes, optionally deleting the branch", async () => {
+    const { gh, calls } = fakeGh("");
+    await gh.markReady(7);
+    await gh.close(7, false);
+    await gh.close(8, true);
+    expect(calls()).toEqual([
+      "pr ready 7 --repo acme/widgets | GH_REPO=",
+      "pr close 7 --repo acme/widgets | GH_REPO=",
+      "pr close 8 --repo acme/widgets --delete-branch | GH_REPO=",
+    ]);
+  });
+});
+
 describe("gh stack", () => {
   it("detects the extension", async () => {
     expect(await fakeGh("gh stack\tgithub/gh-stack\tv0.2.1").gh.hasStackExtension()).toBe(true);

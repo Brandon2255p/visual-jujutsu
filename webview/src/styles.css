@@ -140,6 +140,10 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
   border: 1px solid var(--vj-conflict); background: var(--vj-widget-bg); font-size: 12px; white-space: pre-wrap; user-select: text;
 }
 .banner svg { width: 16px; height: 16px; flex: none; color: var(--vj-conflict); margin-top: 1px; }
+.banner-warn { border-color: var(--vj-warning); white-space: normal; }
+.banner-warn svg { color: var(--vj-warning); }
+.banner-text { display: flex; flex-direction: column; gap: 6px; line-height: 16px; }
+.banner-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .footer {
   display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-top: 1px solid var(--vj-border);
   font-size: 11px; line-height: 16px; color: var(--vj-muted);
@@ -345,6 +349,7 @@ textarea {
 .op-desc { overflow-wrap: anywhere; }
 .op-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; line-height: 16px; color: var(--vj-muted); flex-wrap: wrap; }
 .op.selected .op-meta { color: inherit; opacity: 0.8; }
+.op.selected .op-id { color: inherit; }
 .op-id { color: var(--vj-commit-id); font-size: 11px; }
 .op-actions { display: flex; gap: 6px; padding-top: 6px; }
 .op-note { display: flex; gap: 6px; padding: 8px 12px; font-size: 11px; line-height: 16px; color: var(--vj-muted); }
@@ -376,3 +381,16 @@ textarea {
 .repo-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px 0; }
 .repo-label { font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--vj-fg-2); }
 .repo-row .select { flex: 1; min-width: 0; }
+
+/* ---- Evolution log ---- */
+.evolog-head { display: flex; align-items: center; gap: 6px; padding: 0 8px 6px 4px; min-width: 0; }
+.evolog-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vj-fg-2); }
+.evo-version { flex: none; width: 28px; color: var(--vj-muted); font-size: 11px; line-height: 18px; }
+.op.selected .evo-version { color: inherit; }
+.evo-files { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; cursor: default; }
+.evo-files .file { padding-left: 0; border-radius: 3px; }
+.op.selected .evo-files .file:hover { background: color-mix(in srgb, var(--vj-selected-fg) 12%, transparent); }
+.op.selected .evo-files .file .dir { color: inherit; opacity: 0.7; }
+.muted { color: var(--vj-muted); }
+.pr-row .pr-more { opacity: 0; flex: none; align-self: center; }
+.pr-row:hover .pr-more, .pr-row .pr-more:focus-visible { opacity: 1; }

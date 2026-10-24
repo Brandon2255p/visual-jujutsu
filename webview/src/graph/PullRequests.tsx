@@ -4,6 +4,10 @@ import { expectedBase, groupPullRequests, stackFor, syncPlan, trunkBookmark } fr
 import { Icon } from "../icons";
 import { act } from "../vscode";
 import { cls, relativeTime } from "../util";
+import type { MenuEntry } from "./Menu";
+import { pullRequestMenu } from "./menus";
+
+type OpenMenu = (x: number, y: number, entries: MenuEntry[]) => void;
 
 const REVIEW_TEXT: Record<PullRequest["review"], { text: string; cls: string } | null> = {
   approved: { text: "approved", cls: "pr-review-ok" },
@@ -12,11 +16,19 @@ const REVIEW_TEXT: Record<PullRequest["review"], { text: string; cls: string } |
   none: null,
 };
 
-function PrRow({ pr, note }: { pr: PullRequest; note?: string }) {
+function PrRow({ pr, note, openMenu }: { pr: PullRequest; note?: string; openMenu: OpenMenu }) {
   const review = REVIEW_TEXT[pr.review];
   const state = pr.state === "OPEN" && pr.isDraft ? "draft" : pr.state.toLowerCase();
   return (
-    <div class="pr-row" title={`Open #${pr.number} on GitHub`} onClick={() => act({ kind: "openPullRequest", url: pr.url })}>
+    <div
+      class="pr-row"
+      title={`Open #${pr.number} on GitHub`}
+      onClick={() => act({ kind: "openPullRequest", url: pr.url })}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openMenu(e.clientX, e.clientY, pullRequestMenu(pr));
+      }}
+    >
       <span class={cls("pr", `pr-${state}`)}>
         <Icon name="pull-request" />#{pr.number}
       </span>
@@ -35,12 +47,23 @@ function PrRow({ pr, note }: { pr: PullRequest; note?: string }) {
           {note && <span>{note}</span>}
         </div>
       </div>
+      <button
+        class="icon-btn pr-more"
+        title="Pull request actions"
+        onClick={(e) => {
+          e.stopPropagation();
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          openMenu(r.left, r.bottom + 2, pullRequestMenu(pr));
+        }}
+      >
+        <Icon name="more" />
+      </button>
     </div>
   );
 }
 
 /** Pull requests grouped into stacks, with Sync stack and post-merge cleanup. */
-export function PullRequests({ state }: { state: GraphState }) {
+export function PullRequests({ state, openMenu }: { state: GraphState; openMenu: OpenMenu }) {
   const [filter, setFilter] = useState("");
   const [dismissed, setDismissed] = useState<Set<number>>(new Set());
   const groups = useMemo(() => {
@@ -101,7 +124,7 @@ export function PullRequests({ state }: { state: GraphState }) {
                 </button>
               </div>
               {stack.map((pr) => (
-                <PrRow pr={pr} />
+                <PrRow pr={pr} openMenu={openMenu} />
               ))}
               {fixes.map((f) => (
                 <div class="pr-warning">
@@ -123,7 +146,7 @@ export function PullRequests({ state }: { state: GraphState }) {
             </div>
             {merged.map((pr) => (
               <>
-                <PrRow pr={pr} note={pr.mergedAt ? `merged ${relativeTime(pr.mergedAt)} ago` : "merged"} />
+                <PrRow pr={pr} openMenu={openMenu} note={pr.mergedAt ? `merged ${relativeTime(pr.mergedAt)} ago` : "merged"} />
                 <div class="cleanup">
                   <span>
                     #{pr.number} was merged. Fetch, rebase the work on top of it onto main, and delete bookmark “{pr.headRefName}”?
@@ -149,7 +172,7 @@ export function PullRequests({ state }: { state: GraphState }) {
               <span class="pr-section-title">Other open PRs</span>
             </div>
             {others.map((pr) => (
-              <PrRow pr={pr} />
+              <PrRow pr={pr} openMenu={openMenu} />
             ))}
           </div>
         )}

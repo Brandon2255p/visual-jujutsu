@@ -95,6 +95,16 @@ export class GitHub {
     return this.runner.run(["pr", "edit", String(pr), "--repo", this.slug, "--base", base]);
   }
 
+  markReady(pr: number) {
+    return this.runner.run(["pr", "ready", String(pr), "--repo", this.slug]);
+  }
+
+  close(pr: number, deleteBranch: boolean) {
+    const args = ["pr", "close", String(pr), "--repo", this.slug];
+    if (deleteBranch) args.push("--delete-branch");
+    return this.runner.run(args);
+  }
+
   /** Whether the official gh stack extension (github/gh-stack) is installed. */
   async hasStackExtension(): Promise<boolean> {
     try {

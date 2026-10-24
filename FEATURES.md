@@ -26,7 +26,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 1.7 | Expand a row to see changed files with +/− counts; click a file to open a diff in VS Code's diff editor | P0 ✅ | `jj diff --stat`, `jj file show -r` |
 | 1.8 | Multi-select revisions (shift/cmd-click) for bulk actions | P1 ✅ | |
 | 1.9 | PR badge on bookmarks: PR number, state (open/draft/merged), CI status, review state | P1 ✅ | `gh pr list --json` |
-| 1.10 | Compact / comfortable density toggle | P2 | |
+| 1.10 | Compact / comfortable density toggle (designed: Figma screen 14) | P2 | |
 
 ## 2. Editing revisions
 
@@ -40,7 +40,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 2.6 | **Split** a revision by picking files | P1 ✅ | `jj split -r X <paths>` |
 | 2.7 | **Move individual files** between revisions: drag a file from one revision's file list onto another revision, or right-click a file → "Move to revision…" and pick a target. Works for one or many selected files | P0 ✅ | `jj squash --from X --into Y <path>` |
 | 2.8 | **Absorb** working-copy changes into the stack | P1 ✅ | `jj absorb` |
-| 2.9 | **Duplicate** a revision | P2 | `jj duplicate` |
+| 2.9 | **Duplicate** a revision | P2 ✅ | `jj duplicate` |
 | 2.10 | **Restore** a file to its parent's version | P1 ✅ | `jj restore -r X <path>` |
 | 2.11 | Copy change ID / commit ID | P0 ✅ | |
 
@@ -92,7 +92,7 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 | 6.3 | Open the PR in the browser; copy its URL | P0 ✅ | `gh pr view --web` |
 | 6.4 | **Stacked PRs**: create a PR per revision in a stack, each based on the one below; when the stack is rebased, update bases and push everything; link them as a native GitHub stack when `gh stack` is installed | P1 ✅ | `gh pr create/edit --base`, `gh stack link` |
 | 6.5 | PR status in the graph (state, checks, reviews) | P1 ✅ | `gh pr list --json` |
-| 6.6 | Change the base, mark ready, or close a PR | P2 | `gh pr edit/ready/close` |
+| 6.6 | Change the base, mark ready, or close a PR | P2 ✅ | `gh pr edit/ready/close` |
 | 6.7 | After a PR merges: offer to fetch, rebase the rest of the stack on main, and delete the bookmark | P1 ✅ | |
 
 ## 7. Safety, history and undo
@@ -101,7 +101,7 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 |---|---|---|---|
 | 7.1 | **Undo / redo** buttons for the last operation | P0 ✅ | `jj undo`, `jj redo` |
 | 7.2 | **Operation log** view: list of ops with descriptions; restore to any op | P1 ✅ | `jj op log`, `jj op restore` |
-| 7.3 | **Evolution log** for a revision (how it changed over time), with diffs between versions | P2 | `jj evolog` |
+| 7.3 | **Evolution log** for a revision (how it changed over time), with diffs between versions | P2 ✅ | `jj evolog` |
 | 7.4 | Command echo: an output channel shows each `jj` command run and its result, so users learn the CLI | P0 ✅ | |
 | 7.5 | Confirm destructive actions (abandon, force-move a bookmark backwards, rewrite pushed commits) | P0 ✅ | |
 
@@ -111,7 +111,7 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 |---|---|---|---|
 | 8.1 | Conflict markers on graph nodes and a list of conflicted files | P0 ✅ | template `conflict` |
 | 8.2 | Open a conflicted file at a revision; "resolve" button launches the configured merge tool | P1 ✅ | `jj resolve` |
-| 8.3 | Divergent change warning, with a guided fix (abandon one side) | P2 | |
+| 8.3 | Divergent change warning, with a guided fix (abandon one side) | P2 ✅ | |
 
 ## 9. VS Code integration
 

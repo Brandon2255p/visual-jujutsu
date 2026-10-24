@@ -429,6 +429,36 @@ export class Controller implements vscode.Disposable {
       case "switchRepo":
         // Handled by the graph view, which owns the active repo.
         return false;
+      case "duplicate":
+        this.busy("Duplicating…");
+        await repo.duplicate(action.changeId);
+        return true;
+      case "prChangeBase":
+        return this.prChangeBase(action.number);
+      case "prMarkReady":
+        this.busy(`Marking PR #${action.number} ready…`);
+        await this.requireGitHub().markReady(action.number);
+        this.prsFetchedAt = 0;
+        return true;
+      case "prClose":
+        return this.prClose(action.number);
+      case "openVersionDiff": {
+        const uri = (rev: string) => revUri(this.repo.root, rev, action.path);
+        await vscode.commands.executeCommand("vscode.diff", uri(action.from), uri(action.to), action.title);
+        return false;
+      }
+      case "restoreVersion": {
+        const ok = await this.confirm(
+          `Restore ${this.label(action.changeId)} to version ${action.label}?`,
+          "Its files go back to how they were in that version. The description is kept. You can undo this.",
+          "Restore",
+        );
+        if (!ok) return false;
+        await repo.restoreFrom(action.commitId, action.changeId);
+        return true;
+      }
+      case "resolveDivergence":
+        return this.resolveDivergence(action.changeId);
       case "notSupported":
         void this.notSupported(action.feature);
         return false;
@@ -609,6 +639,14 @@ export class Controller implements vscode.Disposable {
         void this.refresh();
       }
     });
+  }
+
+  evolog(changeId: string) {
+    return this.repo.evolog(changeId);
+  }
+
+  versionFiles(from: string, to: string) {
+    return this.repo.diffBetween(from, to);
   }
 
   operations(limit = 200) {
@@ -846,6 +884,81 @@ export class Controller implements vscode.Disposable {
     void vscode.window.showInformationMessage(`Created ${urls.length} pull request${urls.length === 1 ? "" : "s"}.`, "Open on GitHub").then((c) => {
       if (c) urls.forEach((u) => void vscode.env.openExternal(vscode.Uri.parse(u)));
     });
+    return true;
+  }
+
+  private async prChangeBase(number: number) {
+    const github = this.requireGitHub();
+    const pr = (await this.freshPullRequests()).find((p) => p.number === number);
+    if (!pr) throw new Error(`PR #${number} not found.`);
+    const trunk = trunkBookmark(this.revisions);
+    const open = new Set(this.pullRequests.filter((p) => p.state === "OPEN").map((p) => p.headRefName));
+    const names = [...new Set([trunk, ...this.localBookmarks])].filter((n) => n !== pr.headRefName);
+    const items = names.map((name) => ({
+      label: name,
+      description: [name === pr.baseRefName && "current base", name === trunk && "trunk", open.has(name) && "has an open PR"].filter(Boolean).join(" · "),
+    }));
+    const pick = await vscode.window.showQuickPick(items, { title: `Change the base of PR #${number} (${pr.headRefName} → ${pr.baseRefName})` });
+    if (!pick || pick.label === pr.baseRefName) return false;
+    this.busy(`Updating PR #${number}…`);
+    await github.editBase(number, pick.label);
+    this.prsFetchedAt = 0;
+    return true;
+  }
+
+  private async prClose(number: number) {
+    const github = this.requireGitHub();
+    const pr = this.pullRequests.find((p) => p.number === number);
+    if (!pr) throw new Error(`PR #${number} not found.`);
+    const choice = await vscode.window.showWarningMessage(
+      `Close PR #${number} without merging?`,
+      { modal: true, detail: `${pr.title}\n\nYou can reopen it on GitHub. Deleting the remote branch leaves your local bookmark “${pr.headRefName}” alone.` },
+      "Close",
+      "Close and delete remote branch",
+    );
+    if (!choice) return false;
+    this.busy(`Closing PR #${number}…`);
+    await github.close(number, choice !== "Close");
+    this.prsFetchedAt = 0;
+    return true;
+  }
+
+  /** Keeps one commit of a divergent change and abandons the others. */
+  private async resolveDivergence(id: string) {
+    const rev = this.findRevision(id);
+    const change = rev?.divergentChangeId ?? id;
+    const commits = await this.repo.commitsOfChange(change);
+    if (commits.length < 2) {
+      void vscode.window.showInformationMessage("That change is no longer divergent.");
+      return true;
+    }
+    const items = commits.map((c) => ({
+      label: `$(git-commit) ${c.commitShort}`,
+      description: firstLine(c.description) || "(no description set)",
+      detail: [
+        c.isWorkingCopy && "working copy",
+        c.localBookmarks.length > 0 && `bookmarks: ${c.localBookmarks.map((b) => b.name).join(", ")}`,
+        c.empty && "empty",
+        c.conflict && "conflicted",
+        `by ${c.authorName || c.authorEmail}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      commit: c,
+    }));
+    const keep = await vscode.window.showQuickPick(items, {
+      title: `${change.slice(0, 8)} is divergent: pick the version to keep (the others are abandoned)`,
+      matchOnDescription: true,
+    });
+    if (!keep) return false;
+    const others = commits.filter((c) => c.commitId !== keep.commit.commitId);
+    const ok = await this.confirm(
+      `Keep ${keep.commit.commitShort} and abandon ${others.length === 1 ? others[0].commitShort : `${others.length} other versions`}?`,
+      "Descendants of the abandoned versions are rebased onto their parents. Check each version first with Show evolution log. You can undo this.",
+      "Keep this version",
+    );
+    if (!ok) return false;
+    await this.repo.abandon(others.map((c) => c.commitId));
     return true;
   }
 

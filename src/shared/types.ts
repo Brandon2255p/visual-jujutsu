@@ -21,7 +21,14 @@ export interface RemoteBookmark {
 export type NodeKind = "workingCopy" | "mutable" | "immutable" | "conflict" | "empty";
 
 export interface Revision {
+  /**
+   * The ID actions use. For a divergent change this is the commit ID: from
+   * jj 0.36 a divergent change ID is an error as a revset, and several
+   * revisions share it.
+   */
   changeId: string;
+  /** The change ID, set only when changeId holds a commit ID (divergent changes). */
+  divergentChangeId?: string;
   commitId: string;
   short: ShortId;
   commitShort: string;
@@ -95,6 +102,18 @@ export interface Operation {
   time: string;
   user: string;
   current: boolean;
+}
+
+/** One version of a change in its evolution log, newest first. */
+export interface EvologEntry {
+  commitId: string;
+  commitShort: string;
+  description: string;
+  time: string;
+  /** The operation that made this version; null on older jj (before 0.36 in testing). */
+  operation: string | null;
+  empty: boolean;
+  conflict: boolean;
 }
 
 export interface RemoteBookmarkRef {

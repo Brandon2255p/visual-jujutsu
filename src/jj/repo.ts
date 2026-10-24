@@ -1,4 +1,4 @@
-import type { Bookmark, ChangedFile, FileStatus, Operation, RemoteBookmark, RemoteBookmarkRef, Revision } from "../shared/types";
+import type { Bookmark, ChangedFile, EvologEntry, FileStatus, Operation, RemoteBookmark, RemoteBookmarkRef, Revision } from "../shared/types";
 import type { NewMode, RebaseSource, RebaseTarget } from "../shared/protocol";
 import { CommandLog, Runner } from "./cli";
 
@@ -76,6 +76,20 @@ const OP_TEMPLATE =
     current: bool("self.current_operation()"),
   }) + ` ++ "\\n"`;
 
+/** Evolution log entries. Newer jj (0.36 in testing) gives each entry a commit and an operation; older jj gives the commit itself. */
+const evologTemplate = (commit: string, operation: string) =>
+  obj({
+    commit_id: str(`${commit}commit_id()`),
+    commit_short: str(`${commit}commit_id().short(8)`),
+    description: str(`${commit}description()`),
+    time: str(`${commit}committer().timestamp().format(${TIME_FORMAT})`),
+    operation,
+    empty: bool(`${commit}empty()`),
+    conflict: bool(`${commit}conflict()`),
+  }) + ` ++ "\n"`;
+const EVOLOG_TEMPLATE = evologTemplate("commit.", `if(operation, ${str("operation.description()")}, "null")`);
+const EVOLOG_TEMPLATE_OLD = evologTemplate("self.", `"null"`);
+
 // `present` skips placeholders: from jj 0.36, new local bookmarks are tracked
 // on the remote before they exist there.
 const REMOTE_BOOKMARK_TEMPLATE = `if(remote, if(present, ${obj({
@@ -122,11 +136,28 @@ interface RawRef {
   target: (string | null)[];
 }
 
+/** File statuses and line counts from `jj diff --git` output. */
+export function parseGitDiffFiles(diff: string): ChangedFile[] {
+  const counts = parseGitDiffCounts(diff);
+  const files: ChangedFile[] = [];
+  let current: ChangedFile | null = null;
+  for (const line of diff.split("\n")) {
+    const header = line.match(/^diff --git a\/(.*) b\/(.*)$/);
+    if (header) {
+      current = { path: header[2], status: "modified", conflict: false, ...counts.get(header[2])! };
+      files.push(current);
+    } else if (current && line.startsWith("new file mode")) current.status = "added";
+    else if (current && line.startsWith("deleted file mode")) current.status = "removed";
+  }
+  return files;
+}
+
 export function parseLogLine(line: string): Revision {
   const j = JSON.parse(line);
   const targets = (r: RawRef) => r.target.filter((t): t is string => t !== null);
   return {
-    changeId: j.change_id,
+    changeId: j.divergent ? j.commit_id : j.change_id,
+    ...(j.divergent ? { divergentChangeId: j.change_id } : {}),
     commitId: j.commit_id,
     short: j.short,
     commitShort: j.commit_short,
@@ -173,6 +204,8 @@ export class JjRepo {
   private readonly runner: Runner;
   /** Set by version(); assume the newest jj until then. */
   private versionParts = [Infinity, 0, 0];
+  /** Set once jj rejects the newer evolog template (commit + operation). */
+  private evologOld = false;
 
   constructor(
     jjPath: () => string,
@@ -285,6 +318,46 @@ export class JjRepo {
 
   abandon(changeIds: string[]) {
     return this.run(["abandon", ...changeIds]);
+  }
+
+  duplicate(changeId: string) {
+    return this.run(["duplicate", changeId]);
+  }
+
+  /** Every version of a change, newest first. */
+  async evolog(changeId: string): Promise<EvologEntry[]> {
+    const read = (template: string) => this.run(["evolog", "-r", changeId, "--no-graph", "-T", template], true);
+    let out: string;
+    try {
+      out = await read(this.evologOld ? EVOLOG_TEMPLATE_OLD : EVOLOG_TEMPLATE);
+    } catch (e) {
+      if (this.evologOld || !/Failed to parse template/.test(String(e))) throw e;
+      this.evologOld = true;
+      out = await read(EVOLOG_TEMPLATE_OLD);
+    }
+    // Some versions (e.g. 0.31) add their own "-- operation …" lines; keep only ours.
+    return out
+      .split("\n")
+      .filter((l) => l.startsWith("{"))
+      .map((l) => {
+        const j = JSON.parse(l);
+        return { commitId: j.commit_id, commitShort: j.commit_short, description: j.description, time: j.time, operation: j.operation, empty: j.empty, conflict: j.conflict };
+      });
+  }
+  /** Files that differ between two commits (e.g. two versions of a change). */
+  async diffBetween(from: string, to: string): Promise<ChangedFile[]> {
+    return parseGitDiffFiles(await this.run(["diff", "--from", from, "--to", to, "--git"], true));
+  }
+
+  /** Replaces a revision's contents with another commit's (e.g. an earlier version of it). */
+  restoreFrom(from: string, into: string) {
+    return this.run(["restore", "--from", from, "--into", into]);
+  }
+
+  /** Every visible commit of a change; more than one when it is divergent. */
+  async commitsOfChange(changeId: string): Promise<Revision[]> {
+    // change_id() arrived in jj 0.31; before that a divergent change ID lists all its commits.
+    return this.log(this.atLeast("0.31.0") ? `change_id(${changeId})` : changeId, 20);
   }
 
   squash(from: string, into: string, message: string) {

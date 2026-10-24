@@ -8,9 +8,22 @@ interface RevisionMenuContext {
   selection: Revision[];
   pr: PullRequest | null;
   startDescribe: (changeId: string) => void;
+  showEvolog: (rev: Revision) => void;
 }
 
-export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenuContext): MenuEntry[] {
+/** Actions for an open or draft PR: shared by the revision menu and the pull requests view. */
+export function pullRequestMenu(pr: PullRequest): MenuEntry[] {
+  const open = pr.state === "OPEN";
+  return [
+    { label: "Open on GitHub", run: () => act({ kind: "openPullRequest", url: pr.url }) },
+    { label: "Change base…", disabled: !open, run: () => act({ kind: "prChangeBase", number: pr.number }) },
+    { label: "Mark ready for review", disabled: !open || !pr.isDraft, run: () => act({ kind: "prMarkReady", number: pr.number }) },
+    "-",
+    { label: "Close pull request…", disabled: !open, run: () => act({ kind: "prClose", number: pr.number }) },
+  ];
+}
+
+export function revisionMenu({ rev, selection, pr, startDescribe, showEvolog }: RevisionMenuContext): MenuEntry[] {
   const id = rev.changeId;
   if (selection.length > 1 && selection.some((r) => r.changeId === id)) {
     const ids = selection.map((r) => r.changeId);
@@ -67,7 +80,8 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
     { label: "Move up", kb: "⌥↑", disabled: ro, run: () => act({ kind: "reorder", changeId: id, direction: "up" }) },
     { label: "Move down", kb: "⌥↓", disabled: ro, run: () => act({ kind: "reorder", changeId: id, direction: "down" }) },
     ...(rev.conflict ? [{ label: "Resolve conflicts…", run: () => act({ kind: "resolveConflicts", changeId: id }) }] : []),
-    { label: "Duplicate", run: () => notSupported("Duplicate revision") },
+    ...(rev.divergent ? [{ label: "Resolve divergence…", run: () => act({ kind: "resolveDivergence", changeId: id }) }] : []),
+    { label: "Duplicate", disabled: rev.root, run: () => act({ kind: "duplicate", changeId: id }) },
     "-",
     {
       label: "Bookmark",
@@ -87,11 +101,15 @@ export function revisionMenu({ rev, selection, pr, startDescribe }: RevisionMenu
     { label: "Move pull request here…", disabled: ro, run: () => act({ kind: "movePullRequestHere", changeId: id }) },
     { label: "Create PRs for stack…", disabled: ro, run: () => act({ kind: "createStackPrs", changeId: id }) },
     { label: "Sync stack with GitHub", disabled: ro, run: () => act({ kind: "syncStack", changeId: id }) },
-    ...(pr ? [{ label: `Open PR #${pr.number} on GitHub`, run: () => act({ kind: "openPullRequest", url: pr.url }) }] : []),
+    ...(pr ? [{ label: `Pull request #${pr.number}`, children: pullRequestMenu(pr) }] : []),
     "-",
-    { label: "Copy change ID", kb: "⌘C", run: () => act({ kind: "copy", text: rev.changeId, label: `change ID ${shortId(rev)}` }) },
+    {
+      label: "Copy change ID",
+      kb: "⌘C",
+      run: () => act({ kind: "copy", text: rev.divergentChangeId ?? rev.changeId, label: `change ID ${shortId(rev)}` }),
+    },
     { label: "Copy commit ID", run: () => act({ kind: "copy", text: rev.commitId, label: `commit ID ${rev.commitShort}` }) },
-    { label: "Show evolution log", run: () => notSupported("Evolution log") },
+    { label: "Show evolution log", run: () => showEvolog(rev) },
     "-",
     { label: "Abandon…", kb: "⌫", disabled: ro, run: () => act({ kind: "abandon", changeIds: [id] }) },
   ];

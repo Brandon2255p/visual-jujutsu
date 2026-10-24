@@ -2,7 +2,14 @@
 
 ## Unreleased
 
+### Fixed
+- Actions on a divergent revision failed on jj 0.36 and later ("Change ID … is divergent"), and divergent rows shared an ID in the graph. Divergent revisions are now addressed by commit ID.
+
 ### Added
+- **Duplicate** a revision (`jj duplicate`).
+- **Pull request actions**: change a PR's base, mark a draft ready for review, or close it (optionally deleting the remote branch). From the revision menu's *Pull request* submenu, or right-click / “…” on a PR in the pull requests view.
+- **Evolution log**: *Show evolution log* lists every version of a change (`jj evolog`), with the operation that made each version on newer jj (0.36 and later; older jj shows the versions only). Click a version to see the files that changed since the previous one and open diffs; **Restore this version** copies its files back.
+- **Divergent changes**: a warning above the graph when a change has more than one visible version, and **Keep one version…** abandons the others.
 - **Native GitHub stacks**: when the [gh stack](https://github.com/github/gh-stack) extension is installed, **Create PRs for stack** and **Sync stack** link the stack's PRs with `gh stack link`. Setting: `visualJujutsu.linkGitHubStacks` (on by default).
 
 ## 0.2.1

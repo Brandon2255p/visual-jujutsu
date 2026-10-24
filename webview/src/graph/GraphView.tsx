@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { ChangedFile, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
+import type { ChangedFile, EvologEntry, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
 import { nodeKind } from "../../../src/shared/types";
 import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { Icon } from "../icons";
@@ -8,6 +8,7 @@ import { cls, firstLine, relativeTime, shortId, splitPath } from "../util";
 import { Gutter, gutterWidth } from "./Gutter";
 import { Menu, MenuEntry } from "./Menu";
 import { fileMenu, revisionMenu } from "./menus";
+import { EvoLog, EvologTarget } from "./EvoLog";
 import { OpLog } from "./OpLog";
 import { PullRequests } from "./PullRequests";
 
@@ -39,8 +40,11 @@ export function GraphView() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const [revsetDraft, setRevsetDraft] = useState("");
-  const [view, setView] = useState<"graph" | "prs" | "oplog">("graph");
+  const [view, setView] = useState<"graph" | "prs" | "oplog" | "evolog">("graph");
   const [operations, setOperations] = useState<Operation[] | null>(null);
+  const [evolog, setEvolog] = useState<{ target: EvologTarget; entries: EvologEntry[] | null; error: string | null } | null>(null);
+  const evologRef = useRef(evolog);
+  evologRef.current = evolog;
   const viewRef = useRef(view);
   viewRef.current = view;
   const listRef = useRef<HTMLDivElement>(null);
@@ -58,8 +62,12 @@ export function GraphView() {
         setSelected((prev) => prev.filter((id) => ids.has(id)));
         for (const id of expandedRef.current) if (ids.has(id)) post({ type: "loadFiles", changeId: id });
         if (viewRef.current === "oplog") post({ type: "loadOperations" });
+        const evo = evologRef.current;
+        if (viewRef.current === "evolog" && evo) post({ type: "loadEvolog", changeId: evo.target.changeId });
       } else if (m.type === "operations") {
         setOperations(m.operations);
+      } else if (m.type === "evolog") {
+        setEvolog((prev) => (prev && prev.target.changeId === m.changeId ? { ...prev, entries: m.entries, error: m.error ?? null } : prev));
       } else if (m.type === "files") {
         setFiles((prev) => new Map(prev).set(m.changeId, m.files));
       } else if (m.type === "busy") {
@@ -129,11 +137,20 @@ export function GraphView() {
     setEditing(id);
   };
 
+  const showEvolog = (rev: Revision) => {
+    setEvolog({ target: { changeId: rev.changeId, label: shortId(rev) }, entries: null, error: null });
+    setView("evolog");
+    post({ type: "loadEvolog", changeId: rev.changeId });
+  };
+
   const openRevisionMenu = (rev: Revision, x: number, y: number) => {
     if (!selected.includes(rev.changeId)) setSelected([rev.changeId]);
     const selection = selected.includes(rev.changeId) ? selected.map((id) => byId.get(id)!).filter(Boolean) : [rev];
-    setMenu({ x, y, entries: revisionMenu({ rev, selection, pr: prFor(rev), startDescribe }) });
+    setMenu({ x, y, entries: revisionMenu({ rev, selection, pr: prFor(rev), startDescribe, showEvolog }) });
   };
+
+  const openMenu = (x: number, y: number, entries: MenuEntry[]) => setMenu({ x, y, entries });
+  const divergent = revisions.filter((r) => r.divergent && !r.immutable);
 
   // ---- Keyboard ------------------------------------------------------------
 
@@ -412,7 +429,10 @@ export function GraphView() {
       </div>
 
       {view === "oplog" && <OpLog operations={operations} />}
-      {view === "prs" && <PullRequests state={state} />}
+      {view === "evolog" && evolog && (
+        <EvoLog target={evolog.target} entries={evolog.entries} error={evolog.error} files={files} onBack={() => setView("graph")} />
+      )}
+      {view === "prs" && <PullRequests state={state} openMenu={openMenu} />}
 
       {view === "graph" && (
         <>
@@ -438,6 +458,8 @@ export function GraphView() {
               <span>{state.error.trim()}</span>
             </div>
           )}
+
+          {divergent.length > 0 && <DivergenceBanner revisions={divergent} onCompare={showEvolog} />}
 
           <div class="graph" ref={listRef} tabIndex={0} onKeyDown={onListKey}>
             {revisions.length === 0 && !state.error && <div class="empty-state">No revisions match this revset.</div>}
@@ -748,6 +770,35 @@ function RevisionBlock(p: BlockProps) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Warns about divergent changes (one change ID, several visible commits) and offers the fix. */
+function DivergenceBanner({ revisions, onCompare }: { revisions: Revision[]; onCompare: (rev: Revision) => void }) {
+  const changes = [...new Map(revisions.map((r) => [r.divergentChangeId ?? r.changeId, r])).values()];
+  const first = changes[0];
+  return (
+    <div class="banner banner-warn">
+      <Icon name="warning" />
+      <span class="banner-text">
+        {changes.length === 1 ? (
+          <span>
+            <span class="mono">{shortId(first)}</span> is divergent: {revisions.length} versions of the same change are visible, usually from
+            editing it in two places at once.
+          </span>
+        ) : (
+          <span>{changes.length} changes are divergent: each has more than one visible version.</span>
+        )}
+        <span class="banner-actions">
+          <button class="btn btn-primary btn-sm" onClick={() => act({ kind: "resolveDivergence", changeId: first.changeId })}>
+            Keep one version…
+          </button>
+          <button class="btn btn-secondary btn-sm" onClick={() => onCompare(first)}>
+            View history
+          </button>
+        </span>
+      </span>
     </div>
   );
 }

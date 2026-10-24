@@ -57,7 +57,7 @@ For full control, **Open rebase dialog…** shows every `jj rebase` option, a de
 
 **Create pull request…** pushes the bookmark (creating one if the revision has none) and opens the PR with `gh`. If the revision below already has a PR, the new PR's base is set to that PR's bookmark, so stacked PRs work out of the box. **Move pull request here…** moves a PR's bookmark to another revision and pushes it.
 
-The **pull requests view** groups your PRs into stacks with checks and review state. **Create PRs for stack** opens a PR for every revision in a stack, and **Sync stack** pushes the whole stack and fixes PR bases after a rebase. When a PR merges, **Clean up** fetches, moves the work on top of it onto main and deletes the bookmark.
+From a PR's menu you can also change its base, mark a draft ready for review, or close it. The **pull requests view** groups your PRs into stacks with checks and review state. **Create PRs for stack** opens a PR for every revision in a stack, and **Sync stack** pushes the whole stack and fixes PR bases after a rebase. When a PR merges, **Clean up** fetches, moves the work on top of it onto main and deletes the bookmark.
 
 If the official [`gh stack`](https://github.com/github/gh-stack) extension is installed, **Create PRs for stack** and **Sync stack** also link the PRs into a native GitHub stack (`gh stack link`), so GitHub shows them as a stack and can merge them bottom-up. Turn this off with `visualJujutsu.linkGitHubStacks`.
 
@@ -75,6 +75,8 @@ If the official [`gh stack`](https://github.com/github/gh-stack) extension is in
 - Select several revisions (⌘/⇧-click) to **rebase**, **squash**, **abandon** or **merge** them together.
 - Bookmarks: rename, delete, forget, track / untrack. **Push stack** pushes every bookmark below a revision, and pushes show a **dry-run preview** first.
 - **Resolve conflicts** with your merge tool from the revision or file menu.
+- **Evolution log** for any revision: every version of the change, the files changed between versions, and **Restore this version**.
+- **Divergent changes** get a warning with **Keep one version…** to abandon the others. **Duplicate** copies a revision.
 - A **command log** (“Show commands”) listing every `jj` and `gh` command the extension ran.
 - A status bar item showing the working copy's change ID, description and conflicts.
 - A **Source Control** entry for each repo: the working copy's changes, gutter diffs against `@-`, and a message box that describes `@`.

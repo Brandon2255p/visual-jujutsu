@@ -1,4 +1,4 @@
-import type { ChangedFile, GraphState, Operation, Revision, PullRequest } from "./types";
+import type { ChangedFile, EvologEntry, GraphState, Operation, Revision, PullRequest } from "./types";
 
 export type RebaseSource = "r" | "s" | "b";
 export type RebaseTarget = "o" | "A" | "B";
@@ -54,6 +54,13 @@ export type Action =
   | { kind: "createStackPrs"; changeId: string }
   | { kind: "cleanUpMergedPr"; number: number }
   | { kind: "switchRepo"; root: string }
+  | { kind: "duplicate"; changeId: string }
+  | { kind: "prChangeBase"; number: number }
+  | { kind: "prMarkReady"; number: number }
+  | { kind: "prClose"; number: number }
+  | { kind: "openVersionDiff"; from: string; to: string; path: string; title: string }
+  | { kind: "restoreVersion"; changeId: string; commitId: string; label: string }
+  | { kind: "resolveDivergence"; changeId: string }
   | { kind: "notSupported"; feature: string };
 
 export type WebviewMessage =
@@ -61,6 +68,9 @@ export type WebviewMessage =
   | { type: "setRevset"; revset: string }
   | { type: "loadFiles"; changeId: string }
   | { type: "loadOperations" }
+  | { type: "loadEvolog"; changeId: string }
+  /** Files changed between two versions; answered with a files message keyed by `key`. */
+  | { type: "loadVersionFiles"; key: string; from: string; to: string }
   | { type: "action"; action: Action }
   // Dialog panels
   | { type: "rebaseSubmit"; action: Extract<Action, { kind: "rebase" }> }
@@ -108,6 +118,7 @@ export type HostMessage =
   | { type: "state"; state: GraphState }
   | { type: "files"; changeId: string; files: ChangedFile[] }
   | { type: "operations"; operations: Operation[] }
+  | { type: "evolog"; changeId: string; entries: EvologEntry[] | null; error?: string }
   | { type: "busy"; busy: boolean; label?: string }
   | { type: "init"; mode: "graph" }
   | { type: "rebaseDialog"; data: RebaseDialogData }

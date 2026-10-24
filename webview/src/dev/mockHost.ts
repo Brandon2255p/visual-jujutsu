@@ -1,7 +1,7 @@
 // Fake extension host for previewing the webview in a plain browser
 // (webview/dev.html). Not used inside VS Code.
 import type { HostMessage, WebviewMessage } from "../../../src/shared/protocol";
-import type { ChangedFile, GraphState, Operation, Revision } from "../../../src/shared/types";
+import type { ChangedFile, EvologEntry, GraphState, Operation, Revision } from "../../../src/shared/types";
 import { layoutGraph } from "../../../src/shared/graph";
 
 const now = Date.now();
@@ -86,6 +86,45 @@ let operations: Operation[] = [
 ];
 operations[0].current = true;
 
+// ?divergent shows vnolmswp as a divergent change: two commits, addressed by commit ID.
+if (new URLSearchParams(location.search).has("divergent")) {
+  const i = revisions.findIndex((r) => r.changeId.startsWith("vnolmswp"));
+  const base = revisions[i];
+  const side = (commit: string, description: string): Revision => ({
+    ...base,
+    changeId: commit,
+    commitId: commit,
+    commitShort: commit.slice(2, 10),
+    divergentChangeId: base.changeId,
+    divergent: true,
+    description,
+  });
+  const a = side("c_vnolmswp", base.description);
+  const b = side("c_vnolmswq", "refactor(jj): parse log via templates\n");
+  revisions = revisions.flatMap((r) => (r === base ? [a, b] : r.parents.includes(base.commitId) ? [{ ...r }] : [r]));
+}
+
+function evologOf(changeId: string): EvologEntry[] {
+  const rev = revisions.find((r) => r.changeId === changeId);
+  const d = rev?.description ?? "";
+  const entry = (n: number, description: string, min: number, operation: string, extra: Partial<EvologEntry> = {}): EvologEntry => ({
+    commitId: `e${n}_${changeId}`.padEnd(40, "0"),
+    commitShort: `e${n}${changeId.slice(0, 6)}`,
+    description,
+    time: ago(min),
+    operation,
+    empty: false,
+    conflict: false,
+    ...extra,
+  });
+  return [
+    entry(4, d, 12, "rebase commit 7c3d551a onto main"),
+    entry(3, d, 40, "describe commit 0d81e4f9"),
+    entry(2, d.split("\n")[0].replace(/:.*/, ": wip") + "\n", 75, "snapshot working copy"),
+    entry(1, "", 90, "new empty commit", { empty: true }),
+  ];
+}
+
 function state(): GraphState {
   return {
     repoName: "visual-jujutsu",
@@ -163,6 +202,16 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       setTimeout(() => emit({ type: "rebasePreview", preview: { before, after, moved, conflicts } }), 400);
       break;
     }
+    case "loadEvolog":
+      setTimeout(() => emit({ type: "evolog", changeId: message.changeId, entries: evologOf(message.changeId) }), 150);
+      break;
+    case "loadVersionFiles":
+      emit({
+        type: "files",
+        changeId: message.key,
+        files: message.from.startsWith("e1") ? [f("src/webview/graph.ts", "added", 120, 0)] : [f("src/webview/graph.ts", "modified", 22, 4), f("src/webview/lanes.ts", "added", 88, 0)],
+      });
+      break;
     case "loadOperations":
       emit({ type: "operations", operations });
       break;
