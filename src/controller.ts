@@ -432,7 +432,19 @@ export class Controller implements vscode.Disposable {
         return false;
       case "setDensity":
         // A user setting: density is a preference, not a property of the repo.
-        await config().update("density", action.density, vscode.ConfigurationTarget.Global);
+        try {
+          await config().update("density", action.density, vscode.ConfigurationTarget.Global);
+        } catch (e) {
+          // Right after an update, a window that hasn't reloaded can run the new code
+          // before it knows the new settings ("… is not a registered configuration").
+          if (!/not a registered configuration/i.test(String(e))) throw e;
+          const reload = "Reload Window";
+          const choice = await vscode.window.showWarningMessage(
+            "VS Code hasn't loaded Visual Jujutsu's new settings yet. Reload the window to finish the update, then try again.",
+            reload,
+          );
+          if (choice === reload) await vscode.commands.executeCommand("workbench.action.reloadWindow");
+        }
         return false;
       case "duplicate":
         this.busy("Duplicating…");

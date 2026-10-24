@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Fixed
+- Choosing a density right after updating, before the window reloaded, failed with "visualJujutsu.density is not a registered configuration". It now explains and offers **Reload Window**.
+
 ### Changed
 - Light themes: the selected row uses the theme's softer selection colour with a thin accent bar, instead of the strong blue, so bookmark chips and IDs keep their colours. Dark and high-contrast themes are unchanged.
 
