@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+### Fixed
+- "No jj repository found in this workspace" when VS Code couldn't find jj on its PATH (common when VS Code is started from the Dock or a desktop launcher). The extension now also looks in the usual install locations (Homebrew, `~/.cargo/bin`, `~/.local/bin`, Nix, WinGet, Scoop and others). When jj still can't run, the graph shows the actual error and a link to `visualJujutsu.jjPath`.
+
+### Changed
+- Graph nodes on the working copy's line of work (@, its ancestors and its descendants) are filled; other revisions are hollow.
+- Change IDs show only the shortest unique prefix. Hover to see the full ID; *Copy change ID* still copies the full ID.
+
 ## 1.0.1
 
 ### Fixed

@@ -2,7 +2,7 @@
   "name": "visual-jujutsu",
   "displayName": "Visual Jujutsu",
   "description": "See and edit your Jujutsu (jj) revision graph: describe, rebase, move files and bookmarks, push and open pull requests.",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "publisher": "OpenProcess",
   "author": "Brandon",
   "license": "MIT",
