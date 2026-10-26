@@ -644,7 +644,7 @@ export class Controller implements vscode.Disposable {
 
   /** Merge tools are interactive, so jj resolve runs in a terminal; the graph refreshes when it finishes. */
   private resolveInTerminal(changeId: string, path?: string) {
-    const jj = config().get<string>("jjPath", "jj");
+    const jj = this.repo.jjPath;
     const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
     const args = ["resolve", "-r", changeId, ...(path ? ["--", quote(`root-file:${JSON.stringify(path)}`)] : [])];
     const terminal = vscode.window.createTerminal({ name: `jj resolve ${this.label(changeId)}`, cwd: this.repo.root });

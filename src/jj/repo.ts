@@ -1,6 +1,6 @@
 import type { Bookmark, ChangedFile, EvologEntry, FileStatus, Operation, RemoteBookmark, RemoteBookmarkRef, Revision } from "../shared/types";
 import type { NewMode, RebaseSource, RebaseTarget } from "../shared/protocol";
-import { CommandLog, Runner } from "./cli";
+import { CommandError, CommandLog, Runner } from "./cli";
 
 // Templates build JSON by string concatenation rather than json({ ... }), because
 // map literals need jj 0.46 and many users run older versions. Everything here
@@ -208,21 +208,30 @@ export class JjRepo {
   private evologOld = false;
 
   constructor(
-    jjPath: () => string,
+    private readonly jjPathFn: () => string,
     readonly root: string,
     log: CommandLog,
   ) {
     // An editor would hang the extension, so make any editor launch fail fast.
-    this.runner = new Runner(jjPath, root, log, ["--color=never"], { JJ_EDITOR: "false" });
+    this.runner = new Runner(jjPathFn, root, log, ["--color=never"], { JJ_EDITOR: "false" });
   }
 
+  /**
+   * The repo root containing dir, or null when dir isn't in a jj repo.
+   * Throws when jj can't run at all (not installed, bad config) so the reason can be shown.
+   */
   static async findRoot(jjPath: string, dir: string): Promise<string | null> {
     const runner = new Runner(() => jjPath, dir, { append: () => undefined });
     try {
       return (await runner.run(["root"], { quiet: true })).trim();
-    } catch {
-      return null;
+    } catch (e) {
+      if (e instanceof CommandError && /no jj repo/i.test(e.stderr)) return null;
+      throw e;
     }
+  }
+
+  get jjPath() {
+    return this.jjPathFn();
   }
 
   run(args: string[], quiet = false) {

@@ -15,15 +15,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const repos = new RepoManager(context, output, log);
   context.subscriptions.push(repos);
   if ((await repos.discover()) === 0) {
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(GraphViewProvider.viewId, {
-        resolveWebviewView(view) {
-          view.webview.html = `<body style="padding:12px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)">
-            <p>No jj repository found in this workspace.</p>
-            <p>Run <code>jj git init --colocate</code> in your project, then reload the window.</p></body>`;
-        },
-      }),
-    );
+    showNoRepo(context, repos);
     return;
   }
 
@@ -52,6 +44,33 @@ export async function activate(context: vscode.ExtensionContext) {
       active: repos.active?.root,
     })),
     statusBar(repos),
+  );
+}
+
+/** The graph view when no repo was found, with the reason when jj couldn't run. */
+function showNoRepo(context: vscode.ExtensionContext, repos: RepoManager) {
+  const escape = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+  const settings = `command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify("visualJujutsu.jjPath"))}`;
+  const body = repos.problem
+    ? `<p>Visual Jujutsu couldn't run jj:</p>
+       <pre style="white-space:pre-wrap">${escape(repos.problem)}</pre>
+       <p>If jj is installed, set <a href="${settings}">visualJujutsu.jjPath</a> to its full path
+       (run <code>which jj</code> in a terminal to find it).</p>`
+    : `<p>No jj repository found in this workspace.</p>
+       <p>Run <code>jj git init --colocate</code> in your project, then reload the window.</p>`;
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(GraphViewProvider.viewId, {
+      resolveWebviewView(view) {
+        view.webview.options = { enableCommandUris: true };
+        view.webview.html = `<body style="padding:12px;font-family:var(--vscode-font-family);color:var(--vscode-foreground)">${body}
+          <p><a href="command:workbench.action.reloadWindow">Reload window</a></p></body>`;
+      },
+    }),
+    // A new jjPath setting can find the repo; the graph needs a reload to show it.
+    repos.onDidChangeRepos(async () => {
+      const reload = await vscode.window.showInformationMessage("Visual Jujutsu found a jj repository. Reload the window to open it.", "Reload Window");
+      if (reload) await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    }),
   );
 }
 

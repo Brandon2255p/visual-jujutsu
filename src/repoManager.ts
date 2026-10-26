@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { realpathSync } from "node:fs";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 import { JjRepo } from "./jj/repo";
+import { locateJj } from "./jj/locate";
 import { GitHub, githubSlug } from "./github/gh";
 import { Controller } from "./controller";
 import { JjSourceControl } from "./views/scm";
@@ -36,6 +37,12 @@ function asOpened(root: string, folder: string): string {
   return root;
 }
 
+function describeFailure(jjPath: string, e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (/ENOENT/.test(message)) return `jj wasn't found (looked for "${jjPath}").`;
+  return message.trim();
+}
+
 /**
  * Every jj repo in the workspace (one per folder, plus nested repos), each with
  * its own controller and Source Control entry. The graph shows the active one.
@@ -44,6 +51,10 @@ export class RepoManager implements vscode.Disposable {
   private readonly entries = new Map<string, RepoEntry>();
   private readonly disposables: vscode.Disposable[] = [];
   private activeRoot: string | undefined;
+  /** The jj executable, after looking in the usual install locations (see locateJj). */
+  private jjPath = "jj";
+  /** Why jj couldn't be run in a workspace folder during the last discover(), if it couldn't. */
+  problem: string | undefined;
   private readonly activeEmitter = new vscode.EventEmitter<RepoEntry>();
   readonly onDidChangeActive = this.activeEmitter.event;
   private readonly listEmitter = new vscode.EventEmitter<void>();
@@ -63,6 +74,7 @@ export class RepoManager implements vscode.Disposable {
         if (s.focused) this.refreshAll(300);
       }),
       vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration("visualJujutsu.jjPath")) void this.discover();
         if (e.affectsConfiguration("visualJujutsu")) this.refreshAll(0);
       }),
     );
@@ -96,11 +108,19 @@ export class RepoManager implements vscode.Disposable {
 
   /** Finds jj repos in the workspace and sets up any new ones. Returns how many there are. */
   async discover(): Promise<number> {
-    const jjPath = config().get<string>("jjPath", "jj");
+    const configured = config().get<string>("jjPath", "jj");
+    this.jjPath = await locateJj(configured);
+    if (this.jjPath !== configured) this.output.appendLine(`jj isn't on PATH; using ${this.jjPath}`);
+    this.problem = undefined;
     const roots = new Set<string>();
     for (const folder of vscode.workspace.workspaceFolders ?? []) {
-      const root = await JjRepo.findRoot(jjPath, folder.uri.fsPath);
-      if (root) roots.add(asOpened(root, folder.uri.fsPath));
+      try {
+        const root = await JjRepo.findRoot(this.jjPath, folder.uri.fsPath);
+        if (root) roots.add(asOpened(root, folder.uri.fsPath));
+      } catch (e) {
+        this.problem = describeFailure(this.jjPath, e);
+        this.output.appendLine(`Couldn't run jj in ${folder.uri.fsPath}: ${this.problem}`);
+      }
     }
     // Nested repos: <root>/.jj/working_copy/checkout
     const nested = await vscode.workspace.findFiles("**/.jj/working_copy/checkout", "**/node_modules/**", 50);
@@ -128,7 +148,7 @@ export class RepoManager implements vscode.Disposable {
   }
 
   private async create(root: string, name: string): Promise<RepoEntry> {
-    const repo = new JjRepo(() => config().get<string>("jjPath", "jj"), root, this.log);
+    const repo = new JjRepo(() => this.jjPath, root, this.log);
     const controller = new Controller(repo, await this.github(repo, root), this.output, name);
     const scm = new JjSourceControl(controller);
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(root, ".jj/repo/op_heads/heads/*"));
