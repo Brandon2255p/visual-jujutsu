@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutGraph } from "../src/shared/graph";
+import { activeLine, layoutGraph } from "../src/shared/graph";
 import type { Revision } from "../src/shared/types";
 
 function r(id: string, parents: string[]): Revision {
@@ -57,5 +57,18 @@ describe("layoutGraph", () => {
     const layout = layoutGraph([r("m", ["x", "y"]), r("x", ["a"]), r("y", ["a"]), r("a", [])]);
     expect(layout.rows[0].segments.filter((s) => s.from === "center")).toHaveLength(2);
     expect(layout.rows.map((x) => x.col)).toEqual([0, 0, 1, 0]);
+  });
+});
+
+describe("activeLine", () => {
+  it("is the working copy with its ancestors and descendants", () => {
+    // trunk ← a ← @ ← c, and a side branch trunk ← s
+    const wc = { ...r("w", ["a"]), isWorkingCopy: true };
+    const revs = [r("c", ["w"]), wc, r("s", ["trunk"]), r("a", ["trunk"]), r("trunk", [])];
+    expect([...activeLine(revs)].sort()).toEqual(["a", "c", "trunk", "w"]);
+  });
+
+  it("is empty when the working copy isn't shown", () => {
+    expect(activeLine([r("a", [])]).size).toBe(0);
   });
 });

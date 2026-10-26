@@ -77,3 +77,34 @@ export function layoutGraph(revisions: Revision[]): GraphLayout {
 
   return { rows, laneCount: Math.max(laneCount, 1) };
 }
+
+/**
+ * The change ids on the working copy's line of work: @ with its ancestors and
+ * descendants among the shown revisions. Their nodes are drawn filled.
+ */
+export function activeLine(revisions: Revision[]): Set<string> {
+  const wc = revisions.find((r) => r.isWorkingCopy);
+  if (!wc) return new Set();
+  const byCommit = new Map(revisions.map((r) => [r.commitId, r]));
+  const children = new Map<string, Revision[]>();
+  for (const r of revisions) for (const p of r.parents) {
+    if (!children.has(p)) children.set(p, []);
+    children.get(p)!.push(r);
+  }
+  const active = new Set<string>([wc.changeId]);
+  const walk = (start: Revision, next: (r: Revision) => (Revision | undefined)[]) => {
+    const stack = [start];
+    const seen = new Set<string>();
+    while (stack.length) {
+      for (const n of next(stack.pop()!)) {
+        if (!n || seen.has(n.commitId)) continue;
+        seen.add(n.commitId);
+        active.add(n.changeId);
+        stack.push(n);
+      }
+    }
+  };
+  walk(wc, (r) => r.parents.map((p) => byCommit.get(p)));
+  walk(wc, (r) => children.get(r.commitId) ?? []);
+  return active;
+}

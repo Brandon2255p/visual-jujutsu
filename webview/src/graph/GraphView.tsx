@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { ChangedFile, EvologEntry, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
 import { nodeKind } from "../../../src/shared/types";
+import { activeLine } from "../../../src/shared/graph";
 import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { Icon } from "../icons";
 import { act, notSupported, onMessage, post } from "../vscode";
@@ -11,6 +12,7 @@ import { fileMenu, revisionMenu } from "./menus";
 import { EvoLog, EvologTarget } from "./EvoLog";
 import { OpLog } from "./OpLog";
 import { PullRequests } from "./PullRequests";
+import { ChangeId } from "../ChangeId";
 
 type Drag =
   | { kind: "rev"; changeId: string }
@@ -86,6 +88,7 @@ export function GraphView() {
   const revisions = state?.revisions ?? [];
   const byId = useMemo(() => new Map(revisions.map((r) => [r.changeId, r])), [revisions]);
   const byCommit = useMemo(() => new Map(revisions.map((r) => [r.commitId, r])), [revisions]);
+  const active = useMemo(() => activeLine(revisions), [revisions]);
   const rows = useMemo(() => new Map(state?.layout.rows.map((r) => [r.changeId, r]) ?? []), [state]);
   const prByBookmark = useMemo(() => {
     const m = new Map<string, PullRequest>();
@@ -488,6 +491,7 @@ export function GraphView() {
                   row={row}
                   laneCount={laneCount}
                   rowHeight={rowHeight}
+                  active={active.has(rev.changeId)}
                   gutterW={gutterW}
                   selected={selected.includes(rev.changeId)}
                   expanded={expanded.has(rev.changeId)}
@@ -614,6 +618,7 @@ interface BlockProps {
   row: GraphRow;
   laneCount: number;
   rowHeight: number;
+  active: boolean;
   gutterW: number;
   selected: boolean;
   expanded: boolean;
@@ -655,7 +660,7 @@ function RevisionBlock(p: BlockProps) {
 
   return (
     <div class="block" data-id={rev.changeId}>
-      <Gutter row={p.row} laneCount={p.laneCount} kind={kind} height={p.rowHeight} />
+      <Gutter row={p.row} laneCount={p.laneCount} kind={kind} active={p.active} height={p.rowHeight} />
       <div
         class={cls(
           "row",
@@ -679,10 +684,7 @@ function RevisionBlock(p: BlockProps) {
           p.onMenu(e.clientX, e.clientY);
         }}
       >
-        <span class="change-id mono">
-          <span class="p">{rev.short.prefix}</span>
-          <span class="r">{rev.short.rest}</span>
-        </span>
+        <ChangeId rev={rev} />
         <Chips rev={rev} remoteTargets={p.remoteTargets} onDragBookmark={(e, name) => startDrag(e, { kind: "bookmark", name }, name)} />
         <span class={cls("desc", !desc && "muted")}>
           {rev.empty && desc ? <span class="muted">(empty) </span> : null}

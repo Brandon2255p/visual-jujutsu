@@ -171,11 +171,16 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .gutter line, .gutter path { stroke: var(--vj-edge); stroke-width: 1.5; fill: none; }
 .gutter .dashed { stroke-dasharray: 3 3; }
 :is(.gutter, .mini-node) .node-wc { fill: var(--vj-wc); }
-:is(.gutter, .mini-node) .node-mutable { fill: var(--vj-bg); stroke: var(--vj-mutable); stroke-width: 2; }
+:is(.gutter, .mini-node) .node-mutable { fill: var(--vj-mutable); stroke: var(--vj-mutable); stroke-width: 2; }
 :is(.gutter, .mini-node) .node-immutable { fill: var(--vj-immutable); }
 :is(.gutter, .mini-node) .node-conflict { fill: var(--vj-conflict); }
 :is(.gutter, .mini-node) .node-conflict-x { stroke: var(--vj-on-accent); stroke-width: 1.6; stroke-linecap: round; }
 :is(.gutter, .mini-node) .node-empty { fill: var(--vj-bg); stroke: var(--vj-fg-2); stroke-width: 1.5; stroke-dasharray: 2 2; }
+/* Revisions off the working copy's line of work are drawn hollow. */
+.gutter .inactive .node-mutable { fill: var(--vj-bg); }
+.gutter .inactive .node-immutable { fill: var(--vj-bg); stroke: var(--vj-immutable); stroke-width: 1.5; }
+.gutter .inactive .node-conflict { fill: var(--vj-bg); stroke: var(--vj-conflict); stroke-width: 2; }
+.gutter .inactive .node-conflict-x { stroke: var(--vj-conflict); }
 
 .row {
   display: flex; align-items: center; height: var(--vj-row); padding-right: 8px; gap: 6px; cursor: default;
@@ -187,7 +192,7 @@ svg.icon { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: ro
 .row.drop-before { box-shadow: inset 0 2px 0 var(--vj-focus); }
 .row.drop-after { box-shadow: inset 0 -2px 0 var(--vj-focus); }
 .row.dragging, .file.dragging { opacity: 0.45; }
-.change-id { white-space: nowrap; flex: none; }
+.change-id { white-space: nowrap; flex: none; min-width: 3ch; }
 .change-id .p { color: var(--vj-id-prefix); font-weight: 700; }
 .change-id .r { color: var(--vj-id-rest); }
 .desc { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

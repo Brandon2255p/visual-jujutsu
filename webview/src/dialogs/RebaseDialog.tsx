@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "preact/hooks";
 import type { RebaseDialogData, RebasePreview, RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { nodeKind, type Revision } from "../../../src/shared/types";
-import { layoutGraph } from "../../../src/shared/graph";
+import { activeLine, layoutGraph } from "../../../src/shared/graph";
 import { Gutter, NodeIcon, gutterWidth } from "../graph/Gutter";
 import { Icon } from "../icons";
 import { onMessage, post } from "../vscode";
 import { cls, firstLine, shortId } from "../util";
+import { ChangeId } from "../ChangeId";
 
 const SOURCES: { value: RebaseSource; title: string; desc: string }[] = [
   { value: "r", title: "This revision only", desc: "Descendants stay behind and are rebased onto its parent." },
@@ -37,20 +38,18 @@ export function RadioCard(props: { on: boolean; title: string; flag: string; des
 /** A small read-only graph for the preview, highlighting what the rebase touches. */
 function MiniGraph({ revisions, moved, conflicts }: { revisions: Revision[]; moved: Set<string>; conflicts: Set<string> }) {
   const layout = useMemo(() => layoutGraph(revisions), [revisions]);
+  const active = useMemo(() => activeLine(revisions), [revisions]);
   const gutterW = gutterWidth(layout.laneCount);
   return (
     <div class="mini-graph">
       {revisions.map((rev, i) => (
         <div class="block" key={rev.changeId}>
-          <Gutter row={layout.rows[i]} laneCount={layout.laneCount} kind={nodeKind(rev)} />
+          <Gutter row={layout.rows[i]} laneCount={layout.laneCount} kind={nodeKind(rev)} active={active.has(rev.changeId)} />
           <div
             class={cls("row", moved.has(rev.changeId) && "preview-moved", conflicts.has(rev.changeId) && "preview-conflict")}
             style={{ paddingLeft: `${gutterW}px` }}
           >
-            <span class="change-id mono">
-              <span class="p">{rev.short.prefix}</span>
-              <span class="r">{rev.short.rest}</span>
-            </span>
+            <ChangeId rev={rev} />
             {rev.localBookmarks.map((b) => (
               <span class="chip chip-local">{b.name}</span>
             ))}
@@ -103,10 +102,7 @@ export function RebaseDialog({ data }: { data: RebaseDialogData }) {
         <h1>Rebase</h1>
         <div class="subtitle">
           <NodeIcon kind={nodeKind(rev)} />
-          <span class="change-id mono">
-            <span class="p">{rev.short.prefix}</span>
-            <span class="r">{rev.short.rest}</span>
-          </span>
+          <ChangeId rev={rev} />
           <span>{firstLine(rev.description) || "(no description set)"}</span>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { NodeIcon } from "../graph/Gutter";
 import { Icon } from "../icons";
 import { post } from "../vscode";
 import { cls, firstLine } from "../util";
+import { ChangeId } from "../ChangeId";
 
 export function CreatePrDialog({ data, busy }: { data: CreatePrDialogData; busy: string | null }) {
   const rev = data.revision;
@@ -32,10 +33,7 @@ export function CreatePrDialog({ data, busy }: { data: CreatePrDialogData; busy:
         <h1>Create pull request</h1>
         <div class="subtitle">
           <NodeIcon kind={nodeKind(rev)} />
-          <span class="change-id mono">
-            <span class="p">{rev.short.prefix}</span>
-            <span class="r">{rev.short.rest}</span>
-          </span>
+          <ChangeId rev={rev} />
           <span>{firstLine(rev.description) || "(no description set)"}</span>
         </div>
       </div>
@@ -95,10 +93,7 @@ export function CreatePrDialog({ data, busy }: { data: CreatePrDialogData; busy:
               {data.stack.map((s, i) => (
                 <div class={cls("stack-row", i === 0 && "current")}>
                   <NodeIcon kind={nodeKind(s.revision)} />
-                  <span class="change-id mono">
-                    <span class="p">{s.revision.short.prefix}</span>
-                    <span class="r">{s.revision.short.rest}</span>
-                  </span>
+                  <ChangeId rev={s.revision} />
                   {s.bookmark && <span class={cls("chip", s.revision.inTrunk ? "chip-trunk" : "chip-local")}>{s.bookmark}</span>}
                   <span class="spacer" />
                   {s.pr ? (

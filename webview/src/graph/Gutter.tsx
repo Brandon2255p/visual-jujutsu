@@ -11,7 +11,20 @@ export const gutterWidth = (laneCount: number) => laneCount * LANE + 12;
  * Draws one row's slice of the graph. The SVG is as tall as the row block,
  * so lanes running below the row also pass through expanded content.
  */
-export function Gutter({ row, laneCount, kind, height = ROW_HEIGHT.comfortable }: { row: GraphRow; laneCount: number; kind: NodeKind; height?: number }) {
+export function Gutter({
+  row,
+  laneCount,
+  kind,
+  active = true,
+  height = ROW_HEIGHT.comfortable,
+}: {
+  row: GraphRow;
+  laneCount: number;
+  kind: NodeKind;
+  /** On the working copy's line of work (filled node); others are hollow. */
+  active?: boolean;
+  height?: number;
+}) {
   const width = gutterWidth(laneCount);
   const ROW = height;
   const CENTER = height / 2;
@@ -36,7 +49,9 @@ export function Gutter({ row, laneCount, kind, height = ROW_HEIGHT.comfortable }
           </g>
         );
       })}
-      <Node kind={kind} x={laneX(row.col)} y={CENTER} />
+      <g class={active ? undefined : "inactive"}>
+        <Node kind={kind} x={laneX(row.col)} y={CENTER} />
+      </g>
     </svg>
   );
 }
