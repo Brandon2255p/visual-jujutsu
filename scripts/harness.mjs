@@ -26,10 +26,10 @@ export async function startHarness() {
   const base = `http://127.0.0.1:${server.address().port}/webview/dev.html`;
   const browser = await chromium.launch();
 
-  /** Opens the UI in `mode` (graph | rebase | createPr) at the given CSS size. */
-  async function open(mode, width, height, scale = 2) {
+  /** Opens the UI in `mode` (graph | rebase | createPr) at the given CSS size. `query` adds dev flags, like "&folders". */
+  async function open(mode, width, height, scale = 2, query = "") {
     const page = await browser.newPage({ viewport: { width, height }, deviceScaleFactor: scale });
-    await page.goto(`${base}?mode=${mode}`);
+    await page.goto(`${base}?mode=${mode}${query}`);
     await page.addStyleTag({
       content: `
         body { background: #1f1f1f; }

@@ -33,7 +33,40 @@ async function shot(page, name, clip) {
   await page.close();
 }
 
-// 3. Rebase dialog, with the preview shown
+// 3. Folder view: a revision's files under their folders
+{
+  const page = await open("graph", 360, 560, 2, "&folders");
+  await page.click(row("ryzxvmos"));
+  await page.waitForSelector(".file.folder");
+  await page.hover(".file.folder[title='webview/src/graph']");
+  await shot(page, "folder-view.png");
+  await page.close();
+}
+
+// 4. Evolution log, with the latest version's changes open
+{
+  const page = await open("graph", 360, 520);
+  await page.click(row("ryzxvmos"), { button: "right", position: { x: 150, y: 14 } });
+  // The menu is taller than the page, so click the item directly.
+  await page.$eval(".menu-item:has-text('Show evolution log')", (el) => el.click());
+  await page.waitForSelector(".op");
+  await page.click(".op >> nth=0");
+  await page.waitForSelector(".evo-files .file");
+  await page.mouse.move(350, 510);
+  await shot(page, "evolution-log.png");
+  await page.close();
+}
+
+// 5. Pull requests view: PRs grouped into stacks
+{
+  const page = await open("graph", 360, 520);
+  await page.click(".icon-btn[title='Pull requests']");
+  await page.waitForSelector(".pr-row, .stack, .prs");
+  await shot(page, "pull-requests.png");
+  await page.close();
+}
+
+// 6. Rebase dialog, with the preview shown
 {
   const page = await open("rebase", 920, 900);
   await page.click("button:has-text('Preview')");
@@ -43,7 +76,7 @@ async function shot(page, name, clip) {
   await page.close();
 }
 
-// 4. Create pull request
+// 7. Create pull request
 {
   const page = await open("createPr", 920, 640);
   const h = await page.evaluate(() => document.querySelector(".dialog").getBoundingClientRect().bottom);

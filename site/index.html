@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Visual Jujutsu – the jj revision graph for VS Code</title>
+  <meta name="description" content="Visual Jujutsu is a free, open-source VS Code extension for Jujutsu (jj). See your revision graph, drag to rebase, move files between revisions and open stacked pull requests.">
+  <meta name="keywords" content="Jujutsu, jj, jj-vcs, VS Code extension, version control, Git, revision graph, rebase, stacked pull requests, GitHub">
+  <meta name="author" content="Brandon">
+  <meta name="theme-color" content="#15171a">
+  <meta name="color-scheme" content="dark light">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://brandon2255p.github.io/visual-jujutsu/">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+
+  <!-- Open Graph (Slack, LinkedIn, Discord, Facebook link previews) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Visual Jujutsu">
+  <meta property="og:title" content="Visual Jujutsu – the jj revision graph for VS Code">
+  <meta property="og:description" content="See your Jujutsu revision graph in VS Code. Drag to rebase, move files between revisions, push and open stacked pull requests. Free and open source.">
+  <meta property="og:url" content="https://brandon2255p.github.io/visual-jujutsu/">
+  <meta property="og:image" content="https://brandon2255p.github.io/visual-jujutsu/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Visual Jujutsu: the jj revision graph in the VS Code sidebar">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Visual Jujutsu – the jj revision graph for VS Code">
+  <meta name="twitter:description" content="See your Jujutsu revision graph in VS Code. Drag to rebase, move files between revisions and open stacked pull requests.">
+  <meta name="twitter:image" content="https://brandon2255p.github.io/visual-jujutsu/og-image.png">
+  <meta name="twitter:image:alt" content="Visual Jujutsu: the jj revision graph in the VS Code sidebar">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Visual Jujutsu",
+    "description": "A VS Code extension for Jujutsu (jj): see your revision graph and change it directly. Drag to rebase, move files between revisions, push and open stacked pull requests.",
+    "url": "https://brandon2255p.github.io/visual-jujutsu/",
+    "image": "https://brandon2255p.github.io/visual-jujutsu/og-image.png",
+    "applicationCategory": "DeveloperApplication",
+    "applicationSubCategory": "Version control",
+    "operatingSystem": "Windows, macOS, Linux",
+    "downloadUrl": "https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu",
+    "installUrl": "https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu",
+    "license": "https://opensource.org/licenses/MIT",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "sameAs": [
+      "https://github.com/Brandon2255p/visual-jujutsu",
+      "https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu"
+    ]
+  }
+  </script>
+
+  <style>
+    :root {
+      --bg: #15171a;
+      --bg-2: #1b1d21;
+      --panel: #22252a;
+      --border: #2e3238;
+      --fg: #e6e8eb;
+      --fg-2: #a9b0b8;
+      --muted: #7d8590;
+      --blue: #3794ff;
+      --purple: #c586c0;
+      --green: #3fb950;
+      --code-bg: #0f1113;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #ffffff;
+        --bg-2: #f5f6f8;
+        --panel: #ffffff;
+        --border: #dde1e6;
+        --fg: #1b1d21;
+        --fg-2: #4a515a;
+        --muted: #6a737d;
+        --blue: #0a6fd8;
+        --purple: #9a3f94;
+        --green: #1f883d;
+        --code-bg: #f0f2f4;
+        --shadow: 0 16px 40px rgba(20, 24, 30, 0.14);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .install code { word-break: break-all; }
+    code, kbd {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88em;
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 0.1em 0.35em;
+    }
+    img { max-width: 100%; height: auto; display: block; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+    /* Header */
+    header.top { border-bottom: 1px solid var(--border); }
+    header.top .wrap { display: flex; align-items: center; gap: 12px; height: 60px; }
+    .brand { display: flex; align-items: center; gap: 10px; color: var(--fg); font-weight: 650; }
+    .brand img { width: 28px; height: 28px; }
+    header.top nav { margin-left: auto; display: flex; gap: 20px; font-size: 14px; }
+    header.top nav a { color: var(--fg-2); }
+    @media (max-width: 560px) { header.top nav .hide-sm { display: none; } }
+
+    /* Hero */
+    .hero { padding: 72px 0 56px; }
+    .hero .wrap { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 48px; align-items: center; }
+    .eyebrow { color: var(--purple); font-weight: 600; font-size: 14px; letter-spacing: 0.04em; text-transform: uppercase; margin: 0 0 12px; }
+    h1 { font-size: clamp(34px, 5vw, 52px); line-height: 1.1; margin: 0 0 18px; letter-spacing: -0.02em; }
+    .lede { font-size: 19px; color: var(--fg-2); margin: 0 0 28px; max-width: 34em; }
+    .cta { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 8px;
+      font-weight: 600; font-size: 15px; border: 1px solid transparent;
+    }
+    .btn:hover { text-decoration: none; filter: brightness(1.08); }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-secondary { background: var(--panel); color: var(--fg); border-color: var(--border); }
+    .btn svg { width: 18px; height: 18px; }
+    .install { font-size: 14px; color: var(--muted); }
+    .shot { border-radius: 10px; border: 1px solid var(--border); box-shadow: var(--shadow); background: var(--bg-2); }
+    .hero .shot { width: 100%; max-width: 400px; justify-self: center; }
+    @media (max-width: 820px) {
+      .hero { padding: 44px 0 32px; }
+      .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 36px; }
+    }
+
+    /* Value strip */
+    .points { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--bg-2); }
+    .points .wrap { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; padding-top: 32px; padding-bottom: 32px; }
+    .points h3 { margin: 0 0 6px; font-size: 16px; }
+    .points p { margin: 0; color: var(--fg-2); font-size: 15px; }
+    @media (max-width: 820px) { .points .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; } }
+
+    /* Features */
+    section.feature { padding: 72px 0; }
+    section.feature + section.feature { border-top: 1px solid var(--border); }
+    .feature .wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; align-items: center; }
+    .feature.flip .text { order: 2; }
+    .feature.wide .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .feature.wide .text { max-width: 720px; }
+    .feature.wide .shot { width: 100%; max-width: 920px; }
+    .feature .shot.narrow { width: 100%; max-width: 380px; justify-self: center; }
+    h2 { font-size: clamp(26px, 3.4vw, 34px); line-height: 1.2; margin: 0 0 14px; letter-spacing: -0.01em; }
+    .feature p { color: var(--fg-2); margin: 0 0 12px; }
+    .feature ul { color: var(--fg-2); padding-left: 1.2em; margin: 0; }
+    .feature li { margin: 6px 0; }
+    @media (max-width: 820px) {
+      section.feature { padding: 48px 0; }
+      .feature .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+      .feature.flip .text { order: 0; }
+    }
+
+    /* More */
+    .more { padding: 72px 0; background: var(--bg-2); border-top: 1px solid var(--border); }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+    .card h3 { margin: 0 0 6px; font-size: 16px; }
+    .card p { margin: 0; color: var(--fg-2); font-size: 15px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+    /* Get started */
+    .start { padding: 72px 0; text-align: center; }
+    .start p { color: var(--fg-2); max-width: 40em; margin: 0 auto 24px; }
+    .start .cta { justify-content: center; }
+    .steps { text-align: left; max-width: 640px; margin: 28px auto 0; color: var(--fg-2); }
+    .steps li { margin: 8px 0; }
+
+    footer { border-top: 1px solid var(--border); padding: 28px 0; color: var(--muted); font-size: 14px; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; }
+    footer a { color: var(--fg-2); }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="./"><img src="assets/favicon.svg" alt="" width="28" height="28">Visual Jujutsu</a>
+      <nav aria-label="Main">
+        <a class="hide-sm" href="#features">Features</a>
+        <a class="hide-sm" href="#get-started">Get started</a>
+        <a href="https://github.com/Brandon2255p/visual-jujutsu">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div>
+          <p class="eyebrow">VS Code extension for Jujutsu (jj)</p>
+          <h1>See your jj revision graph. Change it by dragging.</h1>
+          <p class="lede">Visual Jujutsu puts your <a href="https://github.com/jj-vcs/jj">Jujutsu</a> history in the VS Code sidebar. Rebase, move files between revisions, push and open stacked pull requests, all without leaving the editor. It works on the Git repo you already have.</p>
+          <div class="cta">
+            <a class="btn btn-primary" href="https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+              Install for VS Code
+            </a>
+            <a class="btn btn-secondary" href="https://github.com/Brandon2255p/visual-jujutsu">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.2c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.3 1.9 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.6 18.3 5 18.3 5c.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5Z"/></svg>
+              View on GitHub
+            </a>
+          </div>
+          <p class="install">Free and open source (MIT). Or run <code>code --install-extension OpenProcess.visual-jujutsu</code></p>
+        </div>
+        <img class="shot" src="assets/graph.png" width="720" height="800" alt="The Visual Jujutsu revision graph in the VS Code sidebar, showing the working copy, bookmarks, a pull request badge and a conflicted revision">
+      </div>
+    </section>
+
+    <section class="points" aria-label="Highlights">
+      <div class="wrap">
+        <div>
+          <h3>Real jj commands</h3>
+          <p>Every action runs a real <code>jj</code> or <code>gh</code> command. The command log shows exactly what ran.</p>
+        </div>
+        <div>
+          <h3>Undo anything</h3>
+          <p>Press ⌘Z in the graph to undo the last operation, or restore any point from the operation log.</p>
+        </div>
+        <div>
+          <h3>Works with your Git repo</h3>
+          <p>Use it in a colocated jj + Git repo, push to GitHub and keep your teammates' workflow unchanged.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="feature" id="features">
+      <div class="wrap">
+        <div class="text">
+          <h2>Move files between revisions</h2>
+          <p>Drag files from one revision onto another to move those changes. Select several with ⌘-click, or drag a whole folder. A hint shows the exact command before you let go.</p>
+          <p>Prefer menus? Right-click a file and choose <strong>Move to revision…</strong>, <strong>Move into parent</strong> or <strong>Split into a separate revision</strong>.</p>
+        </div>
+        <img class="shot narrow" src="assets/move-files.gif" width="720" height="1280" loading="lazy" alt="Animation: expanding a revision, selecting two files, dragging them onto another revision, and the files appearing there">
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="wrap">
+        <div class="text">
+          <h2>Rebase by drag and drop</h2>
+          <p>Drag a revision onto another to rebase it with its descendants. Hold <kbd>⌥</kbd> to move only that revision, or <kbd>⇧</kbd> to move the whole branch. Drop on a row's edge to insert before or after it.</p>
+          <p>Drag a bookmark chip onto a revision to move the bookmark.</p>
+        </div>
+        <img class="shot narrow" src="assets/drag-rebase.gif" width="720" height="1200" loading="lazy" alt="Animation: dragging a stack onto another revision, holding Option to switch to -r, then dropping and the graph updating">
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="wrap">
+        <div class="text">
+          <h2>Files under their folders</h2>
+          <p>Switch a revision's changed files from a flat list to a folder view, like the Explorer. Folders start expanded and show their total line counts; click one to collapse it, or collapse them all at once.</p>
+          <p>Drag a whole folder onto another revision to move every file in it.</p>
+        </div>
+        <img class="shot narrow" src="assets/folder-view.gif" width="720" height="1200" loading="lazy" alt="Animation: switching to the folder view from the More actions menu, collapsing folders, then collapsing and expanding them all">
+      </div>
+    </section>
+
+    <section class="feature wide">
+      <div class="wrap">
+        <div class="text">
+          <h2>Preview a rebase before you run it</h2>
+          <p>The rebase dialog shows every <code>jj rebase</code> option, a destination picker and the command that will run. <strong>Preview</strong> draws the graph before and after, and flags revisions that would become conflicted, without changing anything.</p>
+        </div>
+        <img class="shot" src="assets/rebase-dialog.png" width="1840" height="1592" loading="lazy" alt="Rebase dialog with what-to-move and where-to-put-it options and the jj rebase command">
+      </div>
+    </section>
+
+    <section class="feature wide">
+      <div class="wrap">
+        <div class="text">
+          <h2>Stacked pull requests that just work</h2>
+          <p><strong>Create pull request…</strong> pushes the bookmark and opens the PR with the GitHub CLI. Each PR's base is set to the PR below it, so stacks work out of the box. <strong>Sync stack</strong> pushes the whole stack and fixes PR bases after a rebase, and <strong>Clean up</strong> tidies up after a merge.</p>
+          <p>With the <a href="https://github.com/github/gh-stack">gh stack</a> extension installed, your PRs are linked as a native GitHub stack too.</p>
+        </div>
+        <img class="shot" src="assets/create-pr.png" width="1840" height="1260" loading="lazy" alt="Create pull request form with head, base, title, description and the stack of revisions">
+      </div>
+    </section>
+
+    <section class="feature flip">
+      <div class="wrap">
+        <div class="text">
+          <h2>All your pull requests, grouped into stacks</h2>
+          <p>The pull requests view shows each stack with its checks and review state, and warns when a PR's base is out of date. <strong>Sync stack</strong> fixes it in one click.</p>
+          <p>When a PR merges, <strong>Clean up</strong> fetches, moves the work on top of it onto main and deletes the bookmark.</p>
+        </div>
+        <img class="shot narrow" src="assets/pull-requests.png" width="720" height="1040" loading="lazy" alt="Pull requests view with a stack of two PRs, their checks and review state, and a merged PR ready to clean up">
+      </div>
+    </section>
+
+    <section class="feature">
+      <div class="wrap">
+        <div class="text">
+          <h2>Every version of a change</h2>
+          <p>The evolution log lists every version jj recorded for a change and the operation that made it. Click a version to see the files that changed since the one before, open the diffs, or <strong>Restore this version</strong>.</p>
+        </div>
+        <img class="shot narrow" src="assets/evolution-log.png" width="720" height="1040" loading="lazy" alt="Evolution log of a change with four versions, the latest open to show its changed files and a Restore this version button">
+      </div>
+    </section>
+
+    <section class="feature wide">
+      <div class="wrap">
+        <div class="text">
+          <h2>Everything jj can do, one right-click away</h2>
+          <p>Describe, edit, new, squash, split, absorb, rebase, bookmarks, push, pull requests, abandon and more. Select several revisions to rebase, squash or merge them together.</p>
+        </div>
+        <img class="shot" src="assets/context-menu.png" width="1440" height="1280" loading="lazy" alt="Revision context menu with the Rebase submenu open">
+      </div>
+    </section>
+
+    <section class="more" aria-labelledby="more-title">
+      <div class="wrap">
+        <h2 id="more-title">Also included</h2>
+        <div class="grid">
+          <div class="card"><h3>Operation log</h3><p>Every operation jj recorded, with <strong>Restore to here</strong>.</p></div>
+          <div class="card"><h3>Push preview</h3><p>Pushes show a dry run first, and a rejected push offers <strong>Fetch and retry</strong>.</p></div>
+          <div class="card"><h3>Revsets and presets</h3><p>Filter the graph with any revset, or pick Default, Mine, Stack of @, All or Bookmarks.</p></div>
+          <div class="card"><h3>Divergent changes</h3><p>A warning when a change has more than one version, and <strong>Keep one version…</strong> to fix it.</p></div>
+          <div class="card"><h3>Conflicts</h3><p>Conflicted revisions stand out, and <strong>Resolve conflicts</strong> opens your merge tool.</p></div>
+          <div class="card"><h3>Keyboard friendly</h3><p>Arrow keys to move, Enter to describe, N for new, S to squash, R to rebase.</p></div>
+          <div class="card"><h3>Source Control</h3><p>The working copy's changes, gutter diffs and a message box that describes <code>@</code>.</p></div>
+          <div class="card"><h3>Multi-root</h3><p>Every jj repo in the workspace, including nested ones, with a picker to switch.</p></div>
+          <div class="card"><h3>Light and dark</h3><p>Follows your VS Code theme, with a compact density for small screens.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="start" id="get-started">
+      <div class="wrap">
+        <h2>Get started in a minute</h2>
+        <p>Install the extension, open a folder that has a jj repository, and the graph appears in the activity bar.</p>
+        <div class="cta">
+          <a class="btn btn-primary" href="https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu">Install for VS Code</a>
+          <a class="btn btn-secondary" href="https://github.com/Brandon2255p/visual-jujutsu#readme">Read the docs</a>
+        </div>
+        <ol class="steps">
+          <li>Install <a href="https://jj-vcs.github.io/jj/latest/install-and-setup/">jj 0.27 or later</a>.</li>
+          <li>In an existing Git repo, run <code>jj git init --colocate</code>.</li>
+          <li>For pull requests, install the <a href="https://cli.github.com">GitHub CLI</a> and run <code>gh auth login</code>.</li>
+        </ol>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Visual Jujutsu is free and open source under the MIT license. Not affiliated with the Jujutsu project.</span>
+      <span>
+        <a href="https://github.com/Brandon2255p/visual-jujutsu">GitHub</a> ·
+        <a href="https://marketplace.visualstudio.com/items?itemName=OpenProcess.visual-jujutsu">Marketplace</a> ·
+        <a href="https://github.com/Brandon2255p/visual-jujutsu/blob/main/CHANGELOG.md">Changelog</a>
+      </span>
+    </div>
+  </footer>
+</body>
+</html>

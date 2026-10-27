@@ -88,6 +88,13 @@ class Recorder {
     }
   }
 
+  /** Moves the real mouse to the drawn pointer, for hover menus. */
+  async hover(ms = FRAME_MS) {
+    await this.page.mouse.move(this.pos.x, this.pos.y);
+    await this.page.waitForTimeout(120);
+    await this.frame(ms);
+  }
+
   async click(modifiers = []) {
     // mouse.click ignores modifiers, so hold them down on the keyboard.
     for (const m of modifiers) await this.page.keyboard.down(m);
@@ -129,9 +136,9 @@ class Recorder {
   }
 }
 
-async function record(name, width, height, script) {
+async function record(name, width, height, script, query = "") {
   const dir = await mkdtemp(join(tmpdir(), "vj-gif-"));
-  const page = await open("graph", width, height, 2);
+  const page = await open("graph", width, height, 2, query);
   await page.evaluate(installOverlay);
   const rec = new Recorder(page, dir);
   rec.pos = { x: width - 40, y: height - 40 };
@@ -182,6 +189,39 @@ await record("move-files.gif", 360, 640, async (r) => {
   await r.hold(600);
   await r.moveTo({ x: 330, y: 610 }, 10);
   await r.hold(2600);
+});
+
+// Switch a revision's files to the folder view, collapse a folder, then collapse and expand them all.
+await record("folder-view.gif", 360, 600, async (r) => {
+  await r.page.click(row("ryzxvmos"));
+  await r.page.waitForSelector(".file");
+  await r.page.mouse.move(0, 0);
+  await r.hold(1200);
+  await r.moveTo(await r.center(".icon-btn[title='More actions']", 11), 14);
+  await r.click();
+  await r.moveTo(await r.center(".menu-item:has-text('Show files as')", 60), 8);
+  await r.hover(500);
+  await r.moveTo(await r.center(".menu-item:has-text('Folders')", 40), 8);
+  await r.hover(300);
+  await r.click();
+  await r.page.waitForSelector(".file.folder");
+  await r.hold(1800);
+  await r.moveTo(await r.center(".file.folder[title='webview/src/graph']", 80), 12);
+  await r.hover(400);
+  await r.click();
+  await r.hold(1000);
+  await r.moveTo(await r.center(".file.folder[title='src']", 40), 8);
+  await r.hover(300);
+  await r.click();
+  await r.hold(1000);
+  await r.moveTo(await r.center(".icon-btn[title='Collapse all folders']", 11), 12);
+  await r.hover(300);
+  await r.click();
+  await r.hold(1300);
+  await r.click();
+  await r.hold(800);
+  await r.moveTo({ x: 330, y: 570 }, 10);
+  await r.hover(2600);
 });
 
 await close();

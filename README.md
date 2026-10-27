@@ -15,7 +15,15 @@ The sidebar shows your revisions the way `jj log` does:
 - Pull request number and CI status for any bookmark with a GitHub PR.
 - Filter with any revset, or pick a preset: Default, Mine, Stack of @, All, Bookmarks.
 
-Click a revision to see its changed files with line counts, then click a file to open a diff. To see files under their folders, like the Explorer, choose *… → Show files as → Folders*; folders start expanded, and you can collapse one folder or all of them. Hover a row for quick actions (describe, new, more), or double-click it to edit the description inline.
+Click a revision to see its changed files with line counts, then click a file to open a diff. Hover a row for quick actions (describe, new, more), or double-click it to edit the description inline.
+
+## Folder view
+
+To see a revision's files under their folders, like the Explorer, choose *… → Show files as → Folders*. Folders start expanded and show their total line counts. Click a folder to collapse it, or use **Collapse all folders** next to the author filter. Drag a folder onto another revision to move every file in it.
+
+<p align="center">
+  <img src="docs/images/folder-view.gif" width="360" alt="Animation: switching to the folder view from the More actions menu, collapsing folders, then collapsing and expanding them all">
+</p>
 
 ## Move files between revisions
 
@@ -65,6 +73,10 @@ If the official [`gh stack`](https://github.com/github/gh-stack) extension is in
   <img src="docs/images/create-pr.png" width="720" alt="Create pull request form with head, base, title, description and the stack">
 </p>
 
+<p align="center">
+  <img src="docs/images/pull-requests.png" width="360" alt="Pull requests view with a stack of two PRs, their checks and review state, and a merged PR ready to clean up">
+</p>
+
 ## Also included
 
 - **Fetch** and **Push** in the toolbar. If a push is rejected, the error offers **Fetch and retry**.
@@ -76,6 +88,8 @@ If the official [`gh stack`](https://github.com/github/gh-stack) extension is in
 - Bookmarks: rename, delete, forget, track / untrack. **Push stack** pushes every bookmark below a revision, and pushes show a **dry-run preview** first.
 - **Resolve conflicts** with your merge tool from the revision or file menu.
 - **Evolution log** for any revision: every version of the change, the files changed between versions, and **Restore this version**.
+
+  <img src="docs/images/evolution-log.png" width="360" alt="Evolution log of a change with four versions, the latest open to show its changed files">
 - **Divergent changes** get a warning with **Keep one version…** to abandon the others. **Duplicate** copies a revision.
 - A **command log** (“Show commands”) listing every `jj` and `gh` command the extension ran.
 - A status bar item showing the working copy's change ID, description and conflicts.

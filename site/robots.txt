@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://brandon2255p.github.io/visual-jujutsu/sitemap.xml
