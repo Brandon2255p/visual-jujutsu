@@ -1,6 +1,7 @@
 import type { Bookmark, ChangedFile, EvologEntry, FileStatus, Operation, RemoteBookmark, RemoteBookmarkRef, Revision } from "../shared/types";
 import type { NewMode, RebaseSource, RebaseTarget } from "../shared/protocol";
 import { CommandError, CommandLog, Runner } from "./cli";
+import { groupStacks } from "../shared/graph";
 
 // Templates build JSON by string concatenation rather than json({ ... }), because
 // map literals need jj 0.46 and many users run older versions. Everything here
@@ -252,10 +253,12 @@ export class JjRepo {
     const args = ["log", "--no-graph", "-T", LOG_TEMPLATE, "-n", String(limit)];
     if (revset.trim()) args.push("-r", revset);
     const out = await this.run(args, true);
-    return out
-      .split("\n")
-      .filter((l) => l.trim())
-      .map(parseLogLine);
+    return groupStacks(
+      out
+        .split("\n")
+        .filter((l) => l.trim())
+        .map(parseLogLine),
+    );
   }
 
   async files(changeId: string): Promise<ChangedFile[]> {
@@ -434,7 +437,7 @@ export class JjRepo {
     return this.runner.exclusive(async (run) => {
       const q = (args: string[], ignoreWc = true) => run(ignoreWc ? ["--ignore-working-copy", ...args] : args, { quiet: true });
       const read = async () =>
-        (await q(["log", "--no-graph", "-T", LOG_TEMPLATE, "-n", "60", "-r", revset])).split("\n").filter((l) => l.trim()).map(parseLogLine);
+        groupStacks((await q(["log", "--no-graph", "-T", LOG_TEMPLATE, "-n", "60", "-r", revset])).split("\n").filter((l) => l.trim()).map(parseLogLine));
       // Snapshot the working copy first, so the operation we return to includes it.
       await q(["log", "--no-graph", "-r", "@", "-T", "''"], false);
       const opId = (await q(["op", "log", "-n", "1", "--no-graph", "-T", "self.id()"])).trim();

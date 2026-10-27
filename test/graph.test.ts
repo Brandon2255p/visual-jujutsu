@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeLine, layoutGraph } from "../src/shared/graph";
+import { activeLine, groupStacks, layoutGraph } from "../src/shared/graph";
 import type { Revision } from "../src/shared/types";
 
 function r(id: string, parents: string[]): Revision {
@@ -70,5 +70,36 @@ describe("activeLine", () => {
 
   it("is empty when the working copy isn't shown", () => {
     expect(activeLine([r("a", [])]).size).toBe(0);
+  });
+});
+
+describe("groupStacks", () => {
+  const ids = (revs: Revision[]) => groupStacks(revs).map((x) => x.changeId).join(" ");
+  const wc = (id: string, parents: string[]) => ({ ...r(id, parents), isWorkingCopy: true });
+
+  it("keeps parallel stacks together, @'s stack first", () => {
+    // jj log --no-graph order: newest first, so the stacks interleave.
+    const revs = [r("a3", ["a2"]), wc("b3", ["b2"]), r("a2", ["a1"]), r("b2", ["b1"]), r("a1", ["base"]), r("b1", ["base"]), r("base", [])];
+    expect(ids(revs)).toBe("b3 b2 b1 a3 a2 a1 base");
+  });
+
+  it("puts the stack holding @ first when @ is in the middle of it", () => {
+    const revs = [r("x2", ["x1"]), r("a2", ["a1"]), r("a1", ["base"]), wc("x1", ["base"]), r("base", [])];
+    expect(ids(revs)).toBe("x2 x1 a2 a1 base");
+  });
+
+  it("keeps the newest-first order of other stacks", () => {
+    const revs = [r("c1", ["base"]), r("a1", ["base"]), wc("w", ["base"]), r("base", [])];
+    expect(ids(revs)).toBe("w c1 a1 base");
+  });
+
+  it("shows a merge's parents after it, first parent's line first", () => {
+    const revs = [wc("m", ["p1", "p2"]), r("p2", ["base"]), r("p1", ["base"]), r("base", [])];
+    expect(ids(revs)).toBe("m p1 p2 base");
+  });
+
+  it("leaves parents outside the revset alone", () => {
+    const revs = [r("a", ["hidden"]), wc("b", ["hidden2"])];
+    expect(ids(revs)).toBe("b a");
   });
 });
