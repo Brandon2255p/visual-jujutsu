@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.0
+
+### Fixed
+- Stacks worked on in parallel were mixed together in the graph, because revisions were listed newest first. Each stack is now kept together, like `jj log`: the stack holding @ first, then the other stacks newest first, then the history they share. This also applies to the rebase preview.
+
 ## 1.2.0
 
 ### Added
