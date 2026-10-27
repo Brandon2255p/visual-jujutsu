@@ -128,6 +128,7 @@ export interface RepoInfo {
 }
 
 export type Density = "comfortable" | "compact";
+export type FileView = "list" | "folders";
 
 export interface RevsetPreset {
   name: string;
@@ -153,6 +154,8 @@ export interface GraphState {
   error: string | null;
   /** visualJujutsu.density */
   density: Density;
+  /** visualJujutsu.fileView */
+  fileView: FileView;
 }
 
 export function nodeKind(rev: Revision): NodeKind {

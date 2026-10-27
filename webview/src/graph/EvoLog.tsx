@@ -1,8 +1,9 @@
 import { useState } from "preact/hooks";
-import type { ChangedFile, EvologEntry } from "../../../src/shared/types";
+import type { ChangedFile, EvologEntry, FileView } from "../../../src/shared/types";
 import { Icon } from "../icons";
 import { act, post } from "../vscode";
-import { cls, firstLine, relativeTime, splitPath } from "../util";
+import { cls, firstLine, relativeTime } from "../util";
+import { FileTree } from "./FileTree";
 
 export interface EvologTarget {
   changeId: string;
@@ -20,10 +21,13 @@ export function EvoLog(props: {
   entries: EvologEntry[] | null;
   error: string | null;
   files: Map<string, ChangedFile[]>;
+  fileView: FileView;
   onBack: () => void;
 }) {
   const { target, entries } = props;
   const [selected, setSelected] = useState<string | null>(null);
+  /** Collapsed folders, as "<versions key>\0<folder>". */
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   const select = (i: number) => {
     const e = entries![i];
@@ -71,17 +75,32 @@ export function EvoLog(props: {
                     {!prev && <div class="op-meta">The first version of this change.</div>}
                     {prev && !files && <div class="op-meta">Loading changes…</div>}
                     {prev && files?.length === 0 && <div class="op-meta">Same files as v{version - 1} (description or parents changed).</div>}
-                    {prev &&
-                      files?.map((f) => {
-                        const { name, dir } = splitPath(f.path);
-                        return (
+                    {prev && files && (
+                      <FileTree
+                        files={files}
+                        view={props.fileView}
+                        indent={0}
+                        isCollapsed={(dir) => collapsed.has(`${versionKey(prev.commitId, e.commitId)}\0${dir}`)}
+                        onToggle={(dir) => {
+                          const k = `${versionKey(prev.commitId, e.commitId)}\0${dir}`;
+                          setCollapsed((c) => {
+                            const next = new Set(c);
+                            if (next.has(k)) next.delete(k);
+                            else next.add(k);
+                            return next;
+                          });
+                        }}
+                        renderFile={(f, name, dir, indent, guides) => (
                           <div
+                            key={f.path}
                             class="file"
+                            style={{ paddingLeft: `${indent}px` }}
                             title={`Compare ${f.path} in v${version - 1} and v${version}`}
                             onClick={() =>
                               act({ kind: "openVersionDiff", from: prev.commitId, to: e.commitId, path: f.path, title: `${name} (v${version - 1} ↔ v${version})` })
                             }
                           >
+                            {guides}
                             <Icon name="file" />
                             <span>{name}</span>
                             <span class="dir">{dir}</span>
@@ -89,8 +108,9 @@ export function EvoLog(props: {
                             <span class="del">−{f.removed}</span>
                             <span class={`st st-${f.status}`}>{STATUS[f.status]}</span>
                           </div>
-                        );
-                      })}
+                        )}
+                      />
+                    )}
                     <div class="op-actions">
                       <button
                         class="btn btn-primary btn-sm"

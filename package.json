@@ -255,6 +255,19 @@
           "default": "comfortable",
           "description": "Row density in the graph, file lists, operation log and pull requests view."
         },
+        "visualJujutsu.fileView": {
+          "type": "string",
+          "enum": [
+            "list",
+            "folders"
+          ],
+          "enumDescriptions": [
+            "A flat list, with each file's folder beside its name (default)",
+            "Files under their folders, like the Explorer"
+          ],
+          "default": "list",
+          "description": "How a revision's changed files are shown in the graph and the evolution log."
+        },
         "visualJujutsu.logLimit": {
           "type": "number",
           "default": 200,

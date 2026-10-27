@@ -126,6 +126,7 @@ function evologOf(changeId: string): EvologEntry[] {
 }
 
 let density: GraphState["density"] = new URLSearchParams(location.search).has("compact") ? "compact" : "comfortable";
+let fileView: GraphState["fileView"] = new URLSearchParams(location.search).has("folders") ? "folders" : "list";
 
 function state(): GraphState {
   return {
@@ -149,6 +150,7 @@ function state(): GraphState {
     lastOperation: operations[0],
     error: null,
     density,
+    fileView,
   };
 }
 
@@ -223,8 +225,9 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       break;
     case "action": {
       const a = message.action;
-      if (a.kind === "setDensity") {
-        density = a.density;
+      if (a.kind === "setDensity" || a.kind === "setFileView") {
+        if (a.kind === "setDensity") density = a.density;
+        else fileView = a.fileView;
         emit({ type: "state", state: state() });
         break;
       }
@@ -268,7 +271,16 @@ function filesOf(changeId: string): ChangedFile[] {
     files.set(
       changeId,
       id === "ryzxvmos"
-        ? [f("src/webview/graph.ts", "modified", 142, 18), f("src/webview/lanes.ts", "added", 88, 0), f("package.json", "modified", 3, 1)]
+        ? [
+            f("src/jj/repo.ts", "modified", 4, 3),
+            f("src/shared/fileTree.ts", "added", 88, 0),
+            f("test/fileTree.test.ts", "added", 120, 0),
+            f("webview/src/graph/FileTree.tsx", "added", 96, 0),
+            f("webview/src/graph/GraphView.tsx", "modified", 31, 12),
+            f("webview/src/graph/Gutter.tsx", "modified", 4, 2),
+            f("CHANGELOG.md", "modified", 6, 0),
+            f("package.json", "modified", 12, 0),
+          ]
         : id === "mzkroyxu"
           ? [f("src/jj/rebase.ts", "modified", 24, 6)]
           : id === "vnolmswp"

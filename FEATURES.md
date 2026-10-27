@@ -27,6 +27,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 1.8 | Multi-select revisions (shift/cmd-click) for bulk actions | P1 ✅ | |
 | 1.9 | PR badge on bookmarks: PR number, state (open/draft/merged), CI status, review state | P1 ✅ | `gh pr list --json` |
 | 1.10 | Compact / comfortable density toggle (Figma screen 14) | P2 ✅ | |
+| 1.11 | Folder view for changed files: files under their folders like the Explorer, expanded by default, with per-folder and collapse-all toggles (Figma screen 15) | P2 ✅ | |
 
 ## 2. Editing revisions
 

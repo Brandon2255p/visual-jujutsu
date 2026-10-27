@@ -4,7 +4,7 @@ import { JjRepo, MIN_JJ_VERSION } from "./jj/repo";
 import { GitHub } from "./github/gh";
 import { layoutGraph } from "./shared/graph";
 import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData, RebasePreview } from "./shared/protocol";
-import type { ChangedFile, Density, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
+import type { ChangedFile, Density, FileView, GraphState, PullRequest, Revision, RevsetPreset } from "./shared/types";
 import { shortChangeId } from "./shared/types";
 import { expectedBase, stackFor, stackPrs, syncPlan, trunkBookmark } from "./shared/stacks";
 import { revUri } from "./views/scm";
@@ -135,6 +135,7 @@ export class Controller implements vscode.Disposable {
       lastOperation,
       error,
       density: config().get<Density>("density", "comfortable"),
+      fileView: config().get<FileView>("fileView", "list"),
     };
   }
 
@@ -431,20 +432,10 @@ export class Controller implements vscode.Disposable {
         // Handled by the graph view, which owns the active repo.
         return false;
       case "setDensity":
-        // A user setting: density is a preference, not a property of the repo.
-        try {
-          await config().update("density", action.density, vscode.ConfigurationTarget.Global);
-        } catch (e) {
-          // Right after an update, a window that hasn't reloaded can run the new code
-          // before it knows the new settings ("… is not a registered configuration").
-          if (!/not a registered configuration/i.test(String(e))) throw e;
-          const reload = "Reload Window";
-          const choice = await vscode.window.showWarningMessage(
-            "VS Code hasn't loaded Visual Jujutsu's new settings yet. Reload the window to finish the update, then try again.",
-            reload,
-          );
-          if (choice === reload) await vscode.commands.executeCommand("workbench.action.reloadWindow");
-        }
+        await this.setPreference("density", action.density);
+        return false;
+      case "setFileView":
+        await this.setPreference("fileView", action.fileView);
         return false;
       case "duplicate":
         this.busy("Duplicating…");
@@ -643,6 +634,23 @@ export class Controller implements vscode.Disposable {
   }
 
   /** Merge tools are interactive, so jj resolve runs in a terminal; the graph refreshes when it finishes. */
+  /** Saves a user setting: density and file view are preferences, not properties of the repo. */
+  private async setPreference(key: string, value: unknown) {
+    try {
+      await config().update(key, value, vscode.ConfigurationTarget.Global);
+    } catch (e) {
+      // Right after an update, a window that hasn't reloaded can run the new code
+      // before it knows the new settings ("… is not a registered configuration").
+      if (!/not a registered configuration/i.test(String(e))) throw e;
+      const reload = "Reload Window";
+      const choice = await vscode.window.showWarningMessage(
+        "VS Code hasn't loaded Visual Jujutsu's new settings yet. Reload the window to finish the update, then try again.",
+        reload,
+      );
+      if (choice === reload) await vscode.commands.executeCommand("workbench.action.reloadWindow");
+    }
+  }
+
   private resolveInTerminal(changeId: string, path?: string) {
     const jj = this.repo.jjPath;
     const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;

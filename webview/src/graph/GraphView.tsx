@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
-import type { ChangedFile, EvologEntry, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
+import type { ChangedFile, EvologEntry, FileView, GraphRow, GraphState, Operation, PullRequest, Revision } from "../../../src/shared/types";
 import { nodeKind } from "../../../src/shared/types";
 import { activeLine } from "../../../src/shared/graph";
+import { buildFileTree, filesIn, folderPaths, type FileTreeDir } from "../../../src/shared/fileTree";
 import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
 import { Icon } from "../icons";
 import { act, notSupported, onMessage, post } from "../vscode";
@@ -12,6 +13,7 @@ import { fileMenu, revisionMenu } from "./menus";
 import { EvoLog, EvologTarget } from "./EvoLog";
 import { OpLog } from "./OpLog";
 import { PullRequests } from "./PullRequests";
+import { FileTree } from "./FileTree";
 import { ChangeId } from "../ChangeId";
 
 type Drag =
@@ -37,6 +39,8 @@ export function GraphView() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [files, setFiles] = useState<Map<string, ChangedFile[]>>(new Map());
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  /** Collapsed folders in the folder view, as fileKey(changeId, folder path). */
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -125,7 +129,22 @@ export function GraphView() {
       } else next.delete(id);
       return next;
     });
+    // Folders start expanded each time a revision's files are shown.
+    setCollapsedDirs((prev) => new Set([...prev].filter((k) => !k.startsWith(id + "\0"))));
   };
+
+  const toggleDir = (changeId: string, dir: string) =>
+    setCollapsedDirs((prev) => {
+      const next = new Set(prev);
+      const k = fileKey(changeId, dir);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
+
+  /** Every folder in the open revisions' file lists, for collapse all. */
+  const openFolders = () =>
+    [...expanded].flatMap((id) => folderPaths(buildFileTree(files.get(id) ?? [])).map((dir) => fileKey(id, dir)));
 
   const selectRow = (id: string, e: MouseEvent | KeyboardEvent | null) => {
     if (e && (e.metaKey || e.ctrlKey)) {
@@ -388,6 +407,14 @@ export function GraphView() {
                     run: () => act({ kind: "setDensity", density: d }),
                   })),
                 },
+                {
+                  label: "Show files as",
+                  children: (["list", "folders"] as const).map((v) => ({
+                    label: v === "list" ? "List" : "Folders",
+                    checked: state.fileView === v,
+                    run: () => act({ kind: "setFileView", fileView: v }),
+                  })),
+                },
                 { label: "Settings", run: () => act({ kind: "openSettings" }) },
               ],
             });
@@ -433,6 +460,7 @@ export function GraphView() {
               ))}
               {!presetMatch && <option value="__custom">Custom</option>}
             </select>
+            {state.fileView === "folders" && <CollapseAllButton folders={openFolders()} collapsed={collapsedDirs} onChange={setCollapsedDirs} />}
             {mine && (
               <button
                 class={cls("icon-btn", state.revset === mine.revset && "active")}
@@ -448,7 +476,7 @@ export function GraphView() {
 
       {view === "oplog" && <OpLog operations={operations} />}
       {view === "evolog" && evolog && (
-        <EvoLog target={evolog.target} entries={evolog.entries} error={evolog.error} files={files} onBack={() => setView("graph")} />
+        <EvoLog target={evolog.target} entries={evolog.entries} error={evolog.error} files={files} fileView={state.fileView} onBack={() => setView("graph")} />
       )}
       {view === "prs" && <PullRequests state={state} openMenu={openMenu} />}
 
@@ -497,6 +525,9 @@ export function GraphView() {
                   expanded={expanded.has(rev.changeId)}
                   editing={editing === rev.changeId}
                   files={files.get(rev.changeId)}
+                  fileView={state.fileView}
+                  isDirCollapsed={(dir) => collapsedDirs.has(fileKey(rev.changeId, dir))}
+                  onToggleDir={(dir) => toggleDir(rev.changeId, dir)}
                   selectedFiles={selectedFiles}
                   pr={prFor(rev)}
                   remoteTargets={remoteTargets}
@@ -534,12 +565,16 @@ export function GraphView() {
                       act({ kind: "openDiff", changeId: rev.changeId, path });
                     }
                   }}
-                  onFileMenu={(path, x, y) => {
+                  onFileMenu={(path, x, y, folder) => {
                     const k = fileKey(rev.changeId, path);
-                    const paths = selectedFiles.has(k)
-                      ? [...selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
-                      : [path];
-                    if (!selectedFiles.has(k)) setSelectedFiles(new Set([k]));
+                    // A folder acts on every file in it; a file on the selection it belongs to.
+                    const paths = folder
+                      ? folder
+                      : selectedFiles.has(k)
+                        ? [...selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
+                        : [path];
+                    if (folder) setSelectedFiles(new Set(folder.map((p) => fileKey(rev.changeId, p))));
+                    else if (!selectedFiles.has(k)) setSelectedFiles(new Set([k]));
                     setMenu({
                       x,
                       y,
@@ -624,6 +659,9 @@ interface BlockProps {
   expanded: boolean;
   editing: boolean;
   files: ChangedFile[] | undefined;
+  fileView: FileView;
+  isDirCollapsed: (dir: string) => boolean;
+  onToggleDir: (dir: string) => void;
   selectedFiles: Set<string>;
   pr: PullRequest | null;
   remoteTargets: Map<string, Set<string>>;
@@ -637,7 +675,8 @@ interface BlockProps {
   onSaveDescription: (message: string) => void;
   onCancelEdit: () => void;
   onFileClick: (path: string, e: MouseEvent) => void;
-  onFileMenu: (path: string, x: number, y: number) => void;
+  /** folder: every path in the right-clicked folder. */
+  onFileMenu: (path: string, x: number, y: number, folder?: string[]) => void;
   onDragStart: (d: Drag) => void;
   onDragOver: (e: DragEvent, el: HTMLElement) => void;
   onDrop: (e: DragEvent, el: HTMLElement) => void;
@@ -752,44 +791,90 @@ function RevisionBlock(p: BlockProps) {
               No changes
             </div>
           )}
-          {p.files?.map((f) => {
-            const { name, dir } = splitPath(f.path);
-            const key = fileKey(rev.changeId, f.path);
-            const sel = p.selectedFiles.has(key);
-            const draggingThis = p.drag?.kind === "files" && p.drag.from === rev.changeId && p.drag.paths.includes(f.path);
-            return (
-              <div
-                class={cls("file", sel && "selected", draggingThis && "dragging")}
-                style={{ paddingLeft: `${p.gutterW - 14}px` }}
-                draggable={!rev.immutable}
-                title={f.path}
-                onDragStart={(e) => {
-                  const paths = sel
-                    ? [...p.selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
-                    : [f.path];
-                  startDrag(e, { kind: "files", from: rev.changeId, paths }, paths.join("\n"));
-                }}
-                onDragEnd={p.onDragEnd}
-                onClick={(e) => p.onFileClick(f.path, e)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  p.onFileMenu(f.path, e.clientX, e.clientY);
-                }}
-              >
-                <Icon name="grip" class="grip" />
-                <Icon name="file" />
-                <span>{name}</span>
-                <span class="dir">{dir}</span>
-                <span class="add">+{f.added}</span>
-                <span class="del">−{f.removed}</span>
-                <span class={cls("st", f.conflict ? "st-conflict" : `st-${f.status}`)}>{f.conflict ? "C" : statusLetter(f.status)}</span>
-              </div>
-            );
-          })}
+          {p.files && (
+            <FileTree
+              files={p.files}
+              view={p.fileView}
+              indent={p.gutterW - 14}
+              grip
+              isCollapsed={p.isDirCollapsed}
+              onToggle={p.onToggleDir}
+              folderProps={(dir: FileTreeDir) => {
+                const paths = filesIn(dir).map((f) => f.path);
+                return {
+                  draggable: !rev.immutable,
+                  onDragStart: (e: DragEvent) => startDrag(e, { kind: "files", from: rev.changeId, paths }, paths.join("\n")),
+                  onDragEnd: p.onDragEnd,
+                  onContextMenu: (e: MouseEvent) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    p.onFileMenu(paths[0], e.clientX, e.clientY, paths);
+                  },
+                };
+              }}
+              renderFile={(f, name, dir, indent, guides) => {
+                const key = fileKey(rev.changeId, f.path);
+                const sel = p.selectedFiles.has(key);
+                const draggingThis = p.drag?.kind === "files" && p.drag.from === rev.changeId && p.drag.paths.includes(f.path);
+                return (
+                  <div
+                    key={f.path}
+                    class={cls("file", sel && "selected", draggingThis && "dragging")}
+                    style={{ paddingLeft: `${indent}px` }}
+                    draggable={!rev.immutable}
+                    title={f.path}
+                    onDragStart={(e) => {
+                      const paths = sel
+                        ? [...p.selectedFiles].filter((s) => s.startsWith(rev.changeId + "\0")).map((s) => s.split("\0")[1])
+                        : [f.path];
+                      startDrag(e, { kind: "files", from: rev.changeId, paths }, paths.join("\n"));
+                    }}
+                    onDragEnd={p.onDragEnd}
+                    onClick={(e) => p.onFileClick(f.path, e)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      p.onFileMenu(f.path, e.clientX, e.clientY);
+                    }}
+                  >
+                    {guides}
+                    <Icon name="grip" class="grip" />
+                    <Icon name="file" />
+                    <span>{name}</span>
+                    <span class="dir">{dir}</span>
+                    <span class="add">+{f.added}</span>
+                    <span class="del">−{f.removed}</span>
+                    <span class={cls("st", f.conflict ? "st-conflict" : `st-${f.status}`)}>{f.conflict ? "C" : statusLetter(f.status)}</span>
+                  </div>
+                );
+              }}
+            />
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+/** Collapses every folder in the open revisions' file lists, or expands them once all are collapsed. */
+function CollapseAllButton({ folders, collapsed, onChange }: { folders: string[]; collapsed: Set<string>; onChange: (next: Set<string>) => void }) {
+  const allCollapsed = folders.length > 0 && folders.every((k) => collapsed.has(k));
+  return (
+    <button
+      class="icon-btn"
+      title={allCollapsed ? "Expand all folders" : "Collapse all folders"}
+      disabled={folders.length === 0}
+      onClick={() => {
+        const next = new Set(collapsed);
+        for (const k of folders) {
+          if (allCollapsed) next.delete(k);
+          else next.add(k);
+        }
+        onChange(next);
+      }}
+    >
+      <Icon name={allCollapsed ? "expand-all" : "collapse-all"} />
+    </button>
   );
 }
 

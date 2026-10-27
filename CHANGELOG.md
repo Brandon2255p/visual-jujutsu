@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Folder view for changed files**: *More actions (…) → Show files as → Folders* shows a revision's changed files under their folders, like the Explorer, in the graph and the evolution log. Folders start expanded and show their total line counts; click a folder to collapse it, or use **Collapse all folders** beside the author filter. Single-child folder chains are merged into one row (`webview/src/graph`). Dragging or right-clicking a folder acts on every file in it. Setting: `visualJujutsu.fileView` (`list` by default).
+
 ## 1.1.0
 
 ### Fixed

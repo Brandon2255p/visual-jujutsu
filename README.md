@@ -15,7 +15,7 @@ The sidebar shows your revisions the way `jj log` does:
 - Pull request number and CI status for any bookmark with a GitHub PR.
 - Filter with any revset, or pick a preset: Default, Mine, Stack of @, All, Bookmarks.
 
-Click a revision to see its changed files with line counts, then click a file to open a diff. Hover a row for quick actions (describe, new, more), or double-click it to edit the description inline.
+Click a revision to see its changed files with line counts, then click a file to open a diff. To see files under their folders, like the Explorer, choose *… → Show files as → Folders*; folders start expanded, and you can collapse one folder or all of them. Hover a row for quick actions (describe, new, more), or double-click it to edit the description inline.
 
 ## Move files between revisions
 
@@ -98,6 +98,7 @@ Features that are planned but not built yet already appear in the UI and say “
 | `visualJujutsu.defaultRevset` | (jj's default) | Revset shown when the graph opens |
 | `visualJujutsu.savedRevsets` | `[]` | Extra presets: `[{ "name": "…", "revset": "…" }]` |
 | `visualJujutsu.density` | `comfortable` | `compact` fits more revisions (22px rows); also in the toolbar's … → Density |
+| `visualJujutsu.fileView` | `list` | `folders` shows changed files under their folders; also in the toolbar's … → Show files as |
 | `visualJujutsu.logLimit` | `200` | Maximum revisions to load |
 | `visualJujutsu.fetchBeforeRebaseOnTrunk` | `true` | Fetch before “Rebase on main” |
 | `visualJujutsu.pullRequestBookmarkPrefix` | `push-` | Prefix for bookmarks created for new PRs |

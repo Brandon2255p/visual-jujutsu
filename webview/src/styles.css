@@ -252,6 +252,12 @@ body:not(.vscode-light) .row.selected .change-id .r { color: color-mix(in srgb, 
 .st-added { color: var(--vj-success); }
 .st-removed, .st-conflict { color: var(--vj-conflict); }
 .st-renamed, .st-copied { color: var(--vj-info); }
+/* Folder view */
+.file { position: relative; }
+.file.folder .folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file.folder :is(.add, .del) { opacity: 0.75; }
+.tree-guide { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--vj-muted); opacity: 0.35; pointer-events: none; }
+.file.selected .tree-guide { background: currentColor; }
 .files .note { height: 22px; display: flex; align-items: center; color: var(--vj-muted); font-size: 11px; }
 
 .describe-editor { padding: 4px 8px 8px 0; background: var(--vj-selected); display: flex; flex-direction: column; gap: 6px; }
@@ -404,6 +410,7 @@ textarea {
 .op.selected .evo-version { color: inherit; }
 .evo-files { display: flex; flex-direction: column; gap: 2px; padding-top: 4px; cursor: default; }
 .evo-files .file { padding-left: 0; border-radius: 3px; }
+.evo-files .tree-guide { top: -1px; bottom: -1px; }
 .op.selected .evo-files .file:hover { background: color-mix(in srgb, var(--vj-selected-fg) 12%, transparent); }
 .op.selected .evo-files .file .dir { color: inherit; opacity: 0.7; }
 .muted { color: var(--vj-muted); }
