@@ -15,10 +15,34 @@ interface RawPr {
   baseRefName: string;
   state: PullRequest["state"];
   isDraft: boolean;
-  statusCheckRollup: { conclusion?: string; status?: string; state?: string }[] | null;
+  commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
   reviewDecision: string | null;
   mergedAt: string | null;
 }
+
+interface PrPage {
+  data: {
+    repository: {
+      pullRequests: { nodes: RawPr[]; pageInfo: { hasNextPage: boolean; endCursor: string | null } };
+    };
+  };
+}
+
+/** Small pages: one request for 100 PRs with their checks can time out at the gateway. */
+const PAGE_SIZE = 25;
+const MAX_PAGES = 2;
+
+const PR_QUERY = `query($owner: String!, $name: String!, $first: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(first: $first, after: $after, orderBy: { field: CREATED_AT, direction: DESC }) {
+      nodes {
+        number title url headRefName baseRefName state isDraft reviewDecision mergedAt
+        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
 
 function review(decision: string | null): PullRequest["review"] {
   switch (decision) {
@@ -33,12 +57,19 @@ function review(decision: string | null): PullRequest["review"] {
   }
 }
 
-function rollup(checks: RawPr["statusCheckRollup"]): PullRequest["checks"] {
-  if (!checks || checks.length === 0) return "none";
-  const results = checks.map((c) => (c.conclusion || c.state || c.status || "").toUpperCase());
-  if (results.some((r) => ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED"].includes(r))) return "failing";
-  if (results.some((r) => ["", "PENDING", "QUEUED", "IN_PROGRESS", "EXPECTED"].includes(r))) return "pending";
-  return "passing";
+function rollup(pr: RawPr): PullRequest["checks"] {
+  switch (pr.commits.nodes[0]?.commit.statusCheckRollup?.state) {
+    case "SUCCESS":
+      return "passing";
+    case "FAILURE":
+    case "ERROR":
+      return "failing";
+    case "PENDING":
+    case "EXPECTED":
+      return "pending";
+    default:
+      return "none";
+  }
 }
 
 export class GitHub {
@@ -53,23 +84,28 @@ export class GitHub {
     this.runner = new Runner(ghPath, cwd, log);
   }
 
+  /** The newest PRs in any state, fetched in pages of 25. */
   async pullRequests(): Promise<PullRequest[]> {
-    const out = await this.runner.run(
-      [
-        "pr",
-        "list",
-        "--repo",
-        this.slug,
-        "--state",
-        "all",
-        "--limit",
-        "100",
-        "--json",
-        "number,title,url,headRefName,baseRefName,state,isDraft,statusCheckRollup,reviewDecision,mergedAt",
-      ],
-      { quiet: true },
-    );
-    return (JSON.parse(out) as RawPr[]).map((p) => ({
+    const [owner, name] = this.slug.split("/");
+    const prs: RawPr[] = [];
+    let after: string | null = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const args = ["api", "graphql", "-f", `query=${PR_QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `first=${PAGE_SIZE}`];
+      if (after) args.push("-f", `after=${after}`);
+      let out: string;
+      try {
+        out = await this.runner.run(args, { quiet: true });
+      } catch (err) {
+        // Keep the first page if a later one fails; the failure is already in the log.
+        if (page === 0) throw err;
+        break;
+      }
+      const { nodes, pageInfo } = (JSON.parse(out) as PrPage).data.repository.pullRequests;
+      prs.push(...nodes);
+      if (!pageInfo.hasNextPage) break;
+      after = pageInfo.endCursor;
+    }
+    return prs.map((p) => ({
       number: p.number,
       title: p.title,
       url: p.url,
@@ -77,7 +113,7 @@ export class GitHub {
       baseRefName: p.baseRefName,
       state: p.state,
       isDraft: p.isDraft,
-      checks: rollup(p.statusCheckRollup),
+      checks: rollup(p),
       review: review(p.reviewDecision),
       mergedAt: p.mergedAt,
     }));

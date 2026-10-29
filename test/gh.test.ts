@@ -57,3 +57,71 @@ describe("gh stack", () => {
     await expect(gh.linkStack(["u1", "u2"], "main")).rejects.toThrow(/not enabled/);
   });
 });
+
+describe("pull requests", () => {
+  /** A fake gh whose GraphQL calls answer with the given pages in turn; "fail" makes that call error. */
+  function pagedGh(pages: (object | "fail")[]) {
+    const dir = mkdtempSync(join(tmpdir(), "vj-gh-"));
+    const calls = join(dir, "calls.log");
+    pages.forEach((p, i) => writeFileSync(join(dir, `page${i}.json`), JSON.stringify(p)));
+    const script = join(dir, "gh");
+    writeFileSync(
+      script,
+      `#!/bin/sh
+n=$(cat "${dir}/count" 2>/dev/null || echo 0); echo $((n + 1)) > "${dir}/count"
+printf '%s' "$*" | tr '\\n' ' ' >> "${calls}"; echo >> "${calls}"
+grep -q '"fail"' "${dir}/page$n.json" && { echo "HTTP 504: Gateway Timeout" >&2; exit 1; }
+cat "${dir}/page$n.json"
+`,
+    );
+    chmodSync(script, 0o755);
+    const gh = new GitHub(() => script, dir, { append: () => undefined }, "acme/widgets");
+    return { gh, calls: () => readFileSync(calls, "utf8").split("\n").filter((l) => l.trim()) };
+  }
+
+  const pr = (number: number, rollupState: string | null) => ({
+    number,
+    title: `PR ${number}`,
+    url: `https://github.com/acme/widgets/pull/${number}`,
+    headRefName: `b${number}`,
+    baseRefName: "main",
+    state: "OPEN",
+    isDraft: false,
+    reviewDecision: null,
+    mergedAt: null,
+    commits: { nodes: [{ commit: { statusCheckRollup: rollupState ? { state: rollupState } : null } }] },
+  });
+  const page = (nodes: object[], hasNextPage: boolean, endCursor: string | null) => ({
+    data: { repository: { pullRequests: { nodes, pageInfo: { hasNextPage, endCursor } } } },
+  });
+
+  it("fetches two pages of 25, passing the cursor", async () => {
+    const { gh, calls } = pagedGh([page([pr(2, "SUCCESS")], true, "CUR1"), page([pr(1, "FAILURE")], true, "CUR2")]);
+    const prs = await gh.pullRequests();
+    expect(prs.map((p) => [p.number, p.checks])).toEqual([
+      [2, "passing"],
+      [1, "failing"],
+    ]);
+    const log = calls();
+    expect(log).toHaveLength(2);
+    expect(log[0]).toContain("first=25");
+    expect(log[0]).not.toContain("after=");
+    expect(log[1]).toContain("after=CUR1");
+  });
+
+  it("stops when there is no next page", async () => {
+    const { gh, calls } = pagedGh([page([pr(1, null)], false, null)]);
+    expect((await gh.pullRequests()).map((p) => p.checks)).toEqual(["none"]);
+    expect(calls()).toHaveLength(1);
+  });
+
+  it("keeps the first page when the second fails", async () => {
+    const { gh } = pagedGh([page([pr(3, "PENDING")], true, "CUR1"), "fail"]);
+    expect((await gh.pullRequests()).map((p) => [p.number, p.checks])).toEqual([[3, "pending"]]);
+  });
+
+  it("throws when the first page fails", async () => {
+    const { gh } = pagedGh(["fail"]);
+    await expect(gh.pullRequests()).rejects.toThrow(/504/);
+  });
+});
