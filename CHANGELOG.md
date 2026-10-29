@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.3.1
+
+### Fixed
+- Loading pull requests could fail with a gateway timeout on busy repositories, because 100 PRs and all their checks were requested at once. They are now fetched in two pages of 25 (the 50 newest), asking only for each PR's overall check result; if the second page fails, the first 25 are still shown.
+
 ## 1.3.0
 
 ### Fixed
