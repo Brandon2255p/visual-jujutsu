@@ -111,7 +111,7 @@ Uses `gh` (already installed and logged in). We can switch to VS Code's GitHub a
 | # | Feature | Pri | Backed by |
 |---|---|---|---|
 | 8.1 | Conflict markers on graph nodes and a list of conflicted files | P0 ✅ | template `conflict` |
-| 8.2 | Open a conflicted file at a revision; "resolve" button launches the configured merge tool | P1 ✅ | `jj resolve` |
+| 8.2 | Open a conflicted file at a revision; "resolve" button opens VS Code's merge editor | P1 ✅ | `jj resolve --tool vscode` |
 | 8.3 | Divergent change warning, with a guided fix (abandon one side) | P2 ✅ | |
 
 ## 9. VS Code integration

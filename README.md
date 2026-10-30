@@ -86,7 +86,7 @@ If the official [`gh stack`](https://github.com/github/gh-stack) extension is in
 - **Split**, **absorb**, **discard changes** to files, **move up / down** in a stack (⌥↑ / ⌥↓), and **rebase all my stacks on main**.
 - Select several revisions (⌘/⇧-click) to **rebase**, **squash**, **abandon** or **merge** them together.
 - Bookmarks: rename, delete, forget, track / untrack. **Push stack** pushes every bookmark below a revision, and pushes show a **dry-run preview** first.
-- **Resolve conflicts** with your merge tool from the revision or file menu.
+- **Resolve conflicts** in VS Code's merge editor from the revision or file menu.
 - **Evolution log** for any revision: every version of the change, the files changed between versions, and **Restore this version**.
 
   <img src="docs/images/evolution-log.png" width="360" alt="Evolution log of a change with four versions, the latest open to show its changed files">

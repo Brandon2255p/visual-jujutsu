@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { CommandError } from "./jj/cli";
 import { JjRepo, MIN_JJ_VERSION } from "./jj/repo";
+import { editorCli } from "./editorCli";
 import { GitHub } from "./github/gh";
 import { layoutGraph } from "./shared/graph";
 import type { Action, CreatePrDialogData, CreatePrRequest, RebaseDialogData, RebasePreview } from "./shared/protocol";
@@ -633,7 +634,6 @@ export class Controller implements vscode.Disposable {
     return changed;
   }
 
-  /** Merge tools are interactive, so jj resolve runs in a terminal; the graph refreshes when it finishes. */
   /** Saves a user setting: density and file view are preferences, not properties of the repo. */
   private async setPreference(key: string, value: unknown) {
     try {
@@ -651,10 +651,25 @@ export class Controller implements vscode.Disposable {
     }
   }
 
+  /**
+   * Resolves in VS Code's merge editor, through jj's built-in vscode merge tool
+   * (`code --wait --merge`). It runs in a terminal so progress and errors stay
+   * visible; the graph refreshes when jj records the resolution.
+   */
   private resolveInTerminal(changeId: string, path?: string) {
     const jj = this.repo.jjPath;
     const quote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
-    const args = ["resolve", "-r", changeId, ...(path ? ["--", quote(`root-file:${JSON.stringify(path)}`)] : [])];
+    const program = `merge-tools.vscode.program=${JSON.stringify(editorCli(vscode.env.appRoot))}`;
+    const args = [
+      "resolve",
+      "--tool",
+      "vscode",
+      "--config",
+      quote(program),
+      "-r",
+      changeId,
+      ...(path ? ["--", quote(`root-file:${JSON.stringify(path)}`)] : []),
+    ];
     const terminal = vscode.window.createTerminal({ name: `jj resolve ${this.label(changeId)}`, cwd: this.repo.root });
     terminal.show();
     terminal.sendText([quote(jj), ...args].join(" "));
