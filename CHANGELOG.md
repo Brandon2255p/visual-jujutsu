@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Fixed
+- Copy and paste (⌘C/⌘V, ⌘X, ⌘A) didn't work in the description box. Its key handler kept those keys from VS Code, which handles clipboard shortcuts in webviews.
 - **Resolve with merge tool** could do nothing, depending on the merge tool jj was set to use. It now opens VS Code's merge editor (through jj's built-in `vscode` merge tool), using the editor's own `code` launcher, so it works even when `code` isn't on your PATH. Close the merge editor to finish; the graph refreshes when jj records the resolution.
 
 ## 1.3.1

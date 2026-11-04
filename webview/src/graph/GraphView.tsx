@@ -974,8 +974,10 @@ function DescribeEditor({
         rows={Math.min(10, Math.max(3, rev.description.split("\n").length + 1))}
         defaultValue={rev.description.trimEnd()}
         placeholder="Describe this revision"
+        // Keys must reach the window: VS Code's webview script listens there for
+        // ⌘C/⌘V/⌘X/⌘A, and copy and paste don't work without it. The graph's own
+        // shortcuts already ignore keys while editing.
         onKeyDown={(e) => {
-          e.stopPropagation();
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
           if (e.key === "Escape") onCancel();
         }}
