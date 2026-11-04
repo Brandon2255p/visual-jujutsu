@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.3.2
 
 ### Fixed
 - Copy and paste (⌘C/⌘V, ⌘X, ⌘A) didn't work in the description box. Its key handler kept those keys from VS Code, which handles clipboard shortcuts in webviews.
