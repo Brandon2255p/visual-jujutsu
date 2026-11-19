@@ -121,6 +121,8 @@ export function fileMenu(
   parent: Revision | undefined,
   conflicted: boolean,
   openDiff: () => void,
+  /** Whether the file exists in the working copy (Open file opens that version). */
+  inWorkingCopy: boolean,
 ): MenuEntry[] {
   const n = paths.length;
   const what = n === 1 ? "file" : `${n} files`;
@@ -135,7 +137,7 @@ export function fileMenu(
     { label: `Split ${what} into a separate revision`, disabled: rev.immutable, run: () => act({ kind: "split", changeId: rev.changeId, paths }) },
     { label: `Discard changes to ${what}`, disabled: rev.immutable, run: () => act({ kind: "restoreFiles", changeId: rev.changeId, paths }) },
     ...(conflicted && n === 1 ? [{ label: "Resolve with merge tool…", run: () => act({ kind: "resolveConflicts", changeId: rev.changeId, path: paths[0] }) }] : []),
-    ...(rev.isWorkingCopy && n === 1 ? [{ label: "Open file", run: () => act({ kind: "openWorkingCopyFile", path: paths[0] }) }] : []),
+    ...(n === 1 ? [{ label: "Open file", disabled: !inWorkingCopy, run: () => act({ kind: "openWorkingCopyFile", path: paths[0] }) }] : []),
     "-",
     { label: "Copy path", disabled: n !== 1, run: () => act({ kind: "copy", text: paths[0], label: "path" }) },
   ];

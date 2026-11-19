@@ -83,6 +83,7 @@ If the official [`gh stack`](https://github.com/github/gh-stack) extension is in
 - **Undo / redo** (⌘Z / ⇧⌘Z in the graph), and destructive actions ask for confirmation first.
 - Keyboard: ↑/↓ select, → / ← expand or collapse, Enter describe, N new, E edit, S squash, R rebase dialog, ⌫ abandon.
 - **Operation log** view: every operation jj recorded, with **Restore to here** for any of them.
+- Hover a changed file for quick **Open diff**, **Open file** (its current version) and **Discard changes** buttons.
 - **Split**, **absorb**, **discard changes** to files, **move up / down** in a stack (⌥↑ / ⌥↓), and **rebase all my stacks on main**.
 - Select several revisions (⌘/⇧-click) to **rebase**, **squash**, **abandon** or **merge** them together.
 - Bookmarks: rename, delete, forget, track / untrack. **Push stack** pushes every bookmark below a revision, and pushes show a **dry-run preview** first.

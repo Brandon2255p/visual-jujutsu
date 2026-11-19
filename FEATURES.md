@@ -44,6 +44,7 @@ This lets the whole design be built and reviewed at once, and features are switc
 | 2.9 | **Duplicate** a revision | P2 ✅ | `jj duplicate` |
 | 2.10 | **Restore** a file to its parent's version | P1 ✅ | `jj restore -r X <path>` |
 | 2.11 | Copy change ID / commit ID | P0 ✅ | |
+| 2.12 | **File quick actions**: hovering a changed file shows Open diff, Open file (the working-copy version, from any revision) and Discard changes (no confirmation; the footer offers Undo) | P1 ✅ | `jj restore`, `vscode.open` |
 
 ## 3. Rebase
 

@@ -81,6 +81,8 @@ export interface ChangedFile {
   added: number;
   removed: number;
   conflict: boolean;
+  /** Whether the path exists in the working copy now, so "Open file" can open it. Set by the host. */
+  inWorkingCopy?: boolean;
 }
 
 export interface PullRequest {

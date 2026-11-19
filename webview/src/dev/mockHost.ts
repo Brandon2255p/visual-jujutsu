@@ -237,6 +237,8 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
         const moving = filesOf(a.from).filter((f) => a.paths.includes(f.path));
         files.set(a.from, filesOf(a.from).filter((f) => !a.paths.includes(f.path)));
         files.set(a.into, [...filesOf(a.into), ...moving]);
+      } else if (a.kind === "restoreFiles") {
+        files.set(a.changeId, filesOf(a.changeId).filter((f) => !a.paths.includes(f.path)));
       } else if (a.kind === "rebase" && a.target === "o" && a.destination) {
         rebase(a.source, a.changeId, a.destination);
       } else break;
@@ -244,6 +246,7 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
       const opText =
         a.kind === "describe" ? `describe commit ${short(a.changeId)}`
         : a.kind === "moveFiles" ? `squash --from ${short(a.from)} --into ${short(a.into)}`
+        : a.kind === "restoreFiles" ? `restore into commit ${short(a.changeId)}`
         : `rebase -${a.source} ${short(a.changeId)} -o ${short(a.destination!)}`;
       operations = [
         { id: Math.random().toString(16).slice(2, 14), description: opText, time: new Date().toISOString(), user: "brandon@mbp", current: true },
@@ -263,7 +266,14 @@ export function handle(message: WebviewMessage, emit: (m: HostMessage) => void) 
 // ---- Simulated repo changes, so the dev harness and GIFs show real results.
 
 const files = new Map<string, ChangedFile[]>();
-const f = (path: string, status: ChangedFile["status"], added: number, removed: number): ChangedFile => ({ path, status, added, removed, conflict: false });
+const f = (path: string, status: ChangedFile["status"], added: number, removed: number): ChangedFile => ({
+  path,
+  status,
+  added,
+  removed,
+  conflict: false,
+  inWorkingCopy: true,
+});
 
 function filesOf(changeId: string): ChangedFile[] {
   if (!files.has(changeId)) {
@@ -277,7 +287,8 @@ function filesOf(changeId: string): ChangedFile[] {
             f("test/fileTree.test.ts", "added", 120, 0),
             f("webview/src/graph/FileTree.tsx", "added", 96, 0),
             f("webview/src/graph/GraphView.tsx", "modified", 31, 12),
-            f("webview/src/graph/Gutter.tsx", "modified", 4, 2),
+            // Deleted in the working copy since, so "Open file" is unavailable.
+            { ...f("webview/src/graph/Gutter.tsx", "modified", 4, 2), inWorkingCopy: false },
             f("CHANGELOG.md", "modified", 6, 0),
             f("package.json", "modified", 12, 0),
           ]

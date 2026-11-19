@@ -37,7 +37,8 @@ export type Action =
   | { kind: "openDiff"; changeId: string; path: string }
   | { kind: "split"; changeId: string; paths?: string[] }
   | { kind: "absorb"; changeId: string }
-  | { kind: "restoreFiles"; changeId: string; paths: string[] }
+  /** quick: from a file row's Discard button, which skips the confirmation (jj undo reverses it). */
+  | { kind: "restoreFiles"; changeId: string; paths: string[]; quick?: boolean }
   | { kind: "reorder"; changeId: string; direction: "up" | "down" }
   | { kind: "rebaseMany"; changeIds: string[] }
   | { kind: "squashMany"; changeIds: string[] }

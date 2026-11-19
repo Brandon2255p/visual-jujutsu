@@ -154,8 +154,19 @@ export class Controller implements vscode.Disposable {
     }
   }
 
-  files(changeId: string): Promise<ChangedFile[]> {
-    return this.repo.files(changeId);
+  /** A revision's changed files, each marked with whether it exists in the working copy now. */
+  async files(changeId: string): Promise<ChangedFile[]> {
+    const files = await this.repo.files(changeId);
+    return Promise.all(
+      files.map(async (f) => {
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), f.path));
+          return { ...f, inWorkingCopy: true };
+        } catch {
+          return { ...f, inWorkingCopy: false };
+        }
+      }),
+    );
   }
 
   findRevision(changeId: string) {
@@ -331,11 +342,13 @@ export class Controller implements vscode.Disposable {
       case "restoreFiles": {
         const n = action.paths.length;
         const what = n === 1 ? action.paths[0] : `${n} files`;
-        const ok = await this.confirm(
-          `Discard changes to ${what} in ${this.label(action.changeId)}?`,
-          "The files go back to their version in the parent revision. You can undo this.",
-          "Discard changes",
-        );
+        const ok =
+          action.quick ||
+          (await this.confirm(
+            `Discard changes to ${what} in ${this.label(action.changeId)}?`,
+            "The files go back to their version in the parent revision. You can undo this.",
+            "Discard changes",
+          ));
         if (!ok) return false;
         await repo.restoreFiles(action.changeId, action.paths);
         return true;
@@ -406,9 +419,17 @@ export class Controller implements vscode.Disposable {
       case "resolveConflicts":
         this.resolveInTerminal(action.changeId, action.path);
         return false;
-      case "openWorkingCopyFile":
-        await vscode.commands.executeCommand("vscode.open", vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), action.path));
+      case "openWorkingCopyFile": {
+        const uri = vscode.Uri.joinPath(vscode.Uri.file(this.repo.root), action.path);
+        try {
+          await vscode.workspace.fs.stat(uri);
+        } catch {
+          void vscode.window.showInformationMessage(`${action.path} doesn't exist in the working copy. Open its diff to see this revision's version.`);
+          return false;
+        }
+        await vscode.commands.executeCommand("vscode.open", uri);
         return false;
+      }
       case "restoreOperation": {
         const ok = await this.confirm(
           "Restore the repo to this operation?",

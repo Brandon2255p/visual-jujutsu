@@ -4,7 +4,7 @@ import { nodeKind } from "../../../src/shared/types";
 import { activeLine } from "../../../src/shared/graph";
 import { buildFileTree, filesIn, folderPaths, type FileTreeDir } from "../../../src/shared/fileTree";
 import type { RebaseSource, RebaseTarget } from "../../../src/shared/protocol";
-import { Icon } from "../icons";
+import { Icon, type IconName } from "../icons";
 import { act, notSupported, onMessage, post } from "../vscode";
 import { cls, firstLine, relativeTime, shortId, splitPath } from "../util";
 import { Gutter, ROW_HEIGHT, gutterWidth } from "./Gutter";
@@ -43,6 +43,11 @@ export function GraphView() {
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; entries: MenuEntry[] } | null>(null);
+  /**
+   * Footer message after a quick discard, with an Undo link. It stays through the
+   * discard's own operation and goes once another operation follows it.
+   */
+  const [notice, setNotice] = useState<{ text: string; baseOp: string | null; restoreOp: string | null } | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [drop, setDrop] = useState<DropTarget | null>(null);
   const [revsetDraft, setRevsetDraft] = useState("");
@@ -83,6 +88,17 @@ export function GraphView() {
     post({ type: "ready" });
     return () => void off();
   }, []);
+
+  // The discard notice outlives the discard's own operation, then gives way to the usual footer.
+  useEffect(() => {
+    setNotice((n) => {
+      if (!n || !state) return n;
+      if (state.error) return null;
+      const op = state.lastOperation?.id ?? null;
+      if (n.restoreOp === null) return op !== n.baseOp ? { ...n, restoreOp: op } : n;
+      return op !== n.restoreOp ? null : n;
+    });
+  }, [state]);
 
   // On <html> so the CSS variables reach menus and every view.
   useEffect(() => {
@@ -584,8 +600,17 @@ export function GraphView() {
                         byCommit.get(rev.parents[0]),
                         (files.get(rev.changeId) ?? []).some((f) => f.conflict && paths.includes(f.path)),
                         () => act({ kind: "openDiff", changeId: rev.changeId, path }),
+                        (files.get(rev.changeId) ?? []).find((f) => f.path === path)?.inWorkingCopy !== false,
                       ),
                     });
+                  }}
+                  onDiscardFile={(path) => {
+                    setNotice({
+                      text: `Discarded changes to ${splitPath(path).name} in ${rev.short.prefix}`,
+                      baseOp: state.lastOperation?.id ?? null,
+                      restoreOp: null,
+                    });
+                    act({ kind: "restoreFiles", changeId: rev.changeId, paths: [path], quick: true });
                   }}
                   onDragStart={(d) => setDrag(d)}
                   onDragOver={(e, el) => {
@@ -634,10 +659,26 @@ export function GraphView() {
 
       <div class="footer">
         <Icon name="terminal" />
-        <span class="grow">
-          jj {state.jjVersion}
-          {state.lastOperation && ` · last op: ${firstLine(state.lastOperation.description)} ${relativeTime(state.lastOperation.time)}`}
-        </span>
+        {notice ? (
+          <>
+            <span class="grow">{notice.text}</span>
+            <button
+              class="link"
+              onClick={() => {
+                setNotice(null);
+                act({ kind: "undo" });
+              }}
+            >
+              Undo
+            </button>
+            <span>·</span>
+          </>
+        ) : (
+          <span class="grow">
+            jj {state.jjVersion}
+            {state.lastOperation && ` · last op: ${firstLine(state.lastOperation.description)} ${relativeTime(state.lastOperation.time)}`}
+          </span>
+        )}
         <button class="link" onClick={() => act({ kind: "showCommandLog" })}>
           Show commands
         </button>
@@ -677,6 +718,8 @@ interface BlockProps {
   onFileClick: (path: string, e: MouseEvent) => void;
   /** folder: every path in the right-clicked folder. */
   onFileMenu: (path: string, x: number, y: number, folder?: string[]) => void;
+  /** The Discard button on a file row. */
+  onDiscardFile: (path: string) => void;
   onDragStart: (d: Drag) => void;
   onDragOver: (e: DragEvent, el: HTMLElement) => void;
   onDrop: (e: DragEvent, el: HTMLElement) => void;
@@ -844,6 +887,7 @@ function RevisionBlock(p: BlockProps) {
                     <span class="dir">{dir}</span>
                     <span class="add">+{f.added}</span>
                     <span class="del">−{f.removed}</span>
+                    <FileActions rev={rev} file={f} name={name} onDiscard={() => p.onDiscardFile(f.path)} />
                     <span class={cls("st", f.conflict ? "st-conflict" : `st-${f.status}`)}>{f.conflict ? "C" : statusLetter(f.status)}</span>
                   </div>
                 );
@@ -996,5 +1040,42 @@ function DescribeEditor({
       </div>
       <div class="hint">⌘↵ save · Esc cancel · jj describe -r {shortId(rev)}</div>
     </div>
+  );
+}
+
+/** Quick actions on a changed file's row, shown on hover in place of its line counts. */
+function FileActions({ rev, file, name, onDiscard }: { rev: Revision; file: ChangedFile; name: string; onDiscard: () => void }) {
+  const canOpen = file.inWorkingCopy !== false;
+  const openTitle = !canOpen
+    ? `${name} doesn't exist in the working copy. Open the diff to see this revision's version.`
+    : rev.isWorkingCopy
+      ? "Open file"
+      : "Open file (its current version in the working copy)";
+  const discardTitle = rev.immutable
+    ? `Can't discard: ${rev.short.prefix} is immutable`
+    : `Discard changes to ${name} (back to the parent's version; ⌘Z undoes it)`;
+  // Disabled buttons use aria-disabled so their tooltips still show on hover.
+  const button = (icon: IconName, title: string, enabled: boolean, run: () => void) => (
+    <button
+      class={cls("icon-btn", "sm", !enabled && "disabled")}
+      title={title}
+      aria-label={title}
+      aria-disabled={!enabled}
+      draggable={false}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (enabled) run();
+      }}
+      onDblClick={(e) => e.stopPropagation()}
+    >
+      <Icon name={icon} />
+    </button>
+  );
+  return (
+    <span class="file-actions">
+      {button("diff", "Open diff", true, () => act({ kind: "openDiff", changeId: rev.changeId, path: file.path }))}
+      {button("open-file", openTitle, canOpen, () => act({ kind: "openWorkingCopyFile", path: file.path }))}
+      {button("discard", discardTitle, !rev.immutable, onDiscard)}
+    </span>
   );
 }
