@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **Quick actions on changed files**: hover (or select) a file in a revision's file list to get three buttons in place of its line counts:
+  - **Open diff** shows the revision's changes to the file.
+  - **Open file** opens the file in the working copy, so from an older revision you land on its current version. It's unavailable when the file no longer exists in the working copy.
+  - **Discard changes** puts the file back to its parent's version right away, without a confirmation. The footer then says what was discarded, with an **Undo** link (⌘Z works too). It's unavailable on immutable revisions.
+- **Open file** in a file's context menu now works in every revision, not only the working copy.
+
 ## 1.3.2
 
 ### Fixed
